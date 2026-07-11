@@ -1,0 +1,289 @@
+"""Main entry point — run the agentic diagnosis pipeline end-to-end.
+
+Phase 1: Uses MockVisionAgent with stubbed retrieval.
+Phase 3: Switches to real vision + real retrieval.
+
+Usage:
+    python main.py                    # Mock mode (default)
+    python main.py --mode ensemble    # Real checkpoint
+    python main.py --num-samples 100  # More test images
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import sys
+import time
+from pathlib import Path
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from agents.vision_agent import create_vision_agent, _load_class_names
+from agents.confidence_quality_agent import ConfidenceQualityAgent
+from agents.orchestrator import Orchestrator
+from agents.evaluate import Evaluator
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("main")
+
+
+def create_synthetic_test_set(
+    class_names: list[str],
+    num_samples: int = 50,
+    seed: int = 42,
+) -> dict[str, str]:
+    """Create a synthetic test set with known ground truth.
+
+    Returns dict mapping image_id -> true_class_name.
+    Distributes samples across classes, with extra weight on healthy
+    and common diseases.
+    """
+    import random
+    rng = random.Random(seed)
+
+    # Ensure at least one sample from each class, then fill randomly
+    test_set: dict[str, str] = {}
+    for i, cn in enumerate(class_names):
+        test_set[f"img_{i:04d}"] = cn
+
+    # Fill remaining with random classes (biased toward common ones)
+    common_diseases = [
+        "Tomato___Late_blight",
+        "Tomato___Early_blight",
+        "Potato___Late_blight",
+        "Apple___Apple_scab",
+        "Corn_(maize)___Common_rust_",
+        "Tomato___healthy",
+        "Potato___healthy",
+        "Apple___healthy",
+    ]
+    while len(test_set) < num_samples:
+        idx = len(test_set)
+        # 40% chance of common disease, 60% random
+        if rng.random() < 0.4:
+            cn = rng.choice(common_diseases)
+        else:
+            cn = rng.choice(class_names)
+        test_set[f"img_{idx:04d}"] = cn
+
+    return test_set
+
+
+def print_section(title: str, width: int = 70) -> None:
+    print(f"\n{'='*width}")
+    print(f"  {title}")
+    print(f"{'='*width}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Agentic Plant Disease Diagnosis")
+    parser.add_argument(
+        "--mode", choices=["mock", "ensemble"], default="mock",
+        help="Vision backend: 'mock' for synthetic, 'ensemble' for real models"
+    )
+    parser.add_argument(
+        "--num-samples", type=int, default=50,
+        help="Number of synthetic test images"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Random seed for reproducibility"
+    )
+    parser.add_argument(
+        "--log-path", type=str, default=None,
+        help="Path to write decision log JSON"
+    )
+    args = parser.parse_args()
+
+    class_names = _load_class_names()
+    print_section("AGENTIC PLANT DISEASE DIAGNOSIS — PHASE 1 (STUBBED RETRIEVAL)")
+    print(f"Mode: {args.mode}")
+    print(f"Classes: {len(class_names)}")
+    print(f"Healthy classes: {sum(1 for c in class_names if c.endswith('___healthy'))}")
+
+    # ── Step 1: Create vision agent ──────────────────────────────────────
+    print_section("STEP 1: Vision Agent")
+    if args.mode == "ensemble":
+        checkpoint_paths = [
+            PROJECT_ROOT / "model" / "fedma_global_model_plantvillage.pth",
+            # Append more paths here for N>1:
+            # PROJECT_ROOT / "model" / "fedopt_plantvillage.pth",
+        ]
+        vision_agent = create_vision_agent(
+            mode="ensemble",
+            checkpoint_paths=checkpoint_paths,
+        )
+        print(f"Loaded {len(checkpoint_paths)} model(s)")
+    else:
+        vision_agent = create_vision_agent(mode="mock", seed=args.seed)
+        print("MockVisionAgent created (synthetic probability distributions)")
+
+    # ── Step 2: Create orchestrator ──────────────────────────────────────
+    print_section("STEP 2: Orchestrator")
+    log_path = args.log_path or str(
+        PROJECT_ROOT / "agents" / "decision_log.json"
+    )
+    orchestrator = Orchestrator(
+        vision_agent=vision_agent,
+        quality_agent=ConfidenceQualityAgent(),
+        decision_log_path=log_path,
+    )
+    print(f"Decision log path: {log_path}")
+    print(f"Routing thresholds:")
+    print(f"  HIGH confidence:  >= {orchestrator.CONFIDENCE_HIGH}")
+    print(f"  LOW confidence:   <  {orchestrator.CONFIDENCE_LOW}")
+    print(f"  MARGIN threshold: >= {orchestrator.MARGIN_THRESHOLD}")
+    print(f"  DISAGREEMENT:     <  {orchestrator.AGREEMENT_DISAGREEMENT}")
+
+    # ── Step 3: Create synthetic test set ────────────────────────────────
+    print_section("STEP 3: Test Set")
+    test_set = create_synthetic_test_set(
+        class_names, num_samples=args.num_samples, seed=args.seed
+    )
+    print(f"Generated {len(test_set)} synthetic test images")
+    print(f"Sample entries:")
+    for img_id, label in list(test_set.items())[:5]:
+        print(f"  {img_id}: {label}")
+    print(f"  ... ({len(test_set) - 5} more)")
+
+    # ── Step 4: Run pipeline ─────────────────────────────────────────────
+    print_section("STEP 4: Running Pipeline")
+    start_time = time.time()
+
+    decisions = []
+    for i, (img_id, true_label) in enumerate(test_set.items()):
+        # In mock mode, we pass None as the image (MockVisionAgent ignores it)
+        # In ensemble mode, we'd need actual images
+        image = None if args.mode == "mock" else None  # TODO: real images
+
+        decision = orchestrator.process_image(
+            image=image,
+            image_id=img_id,
+            image_array=None,  # No real images in Phase 1
+        )
+        decisions.append(decision)
+
+        if (i + 1) % 10 == 0 or i == 0:
+            print(
+                f"  [{i+1}/{len(test_set)}] "
+                f"{img_id}: {decision.action:25s} "
+                f"conf={decision.confidence:.3f} "
+                f"pred={decision.prediction[:30]}"
+            )
+
+    elapsed = time.time() - start_time
+    print(f"\nCompleted {len(decisions)} images in {elapsed:.2f}s "
+          f"({len(decisions)/max(elapsed, 0.001):.0f} img/s)")
+
+    # ── Step 5: Sample outputs ───────────────────────────────────────────
+    print_section("STEP 5: Sample Outputs")
+    for d in decisions[:8]:
+        print(f"\n--- {d.image_id} ---")
+        print(f"  Prediction:  {d.prediction}")
+        print(f"  Confidence:  {d.confidence:.4f}")
+        print(f"  Margin:      {d.margin:.4f}")
+        print(f"  Agreement:   {d.agreement_ratio:.0%}")
+        print(f"  Quality OK:  {d.quality_ok}")
+        print(f"  Action:      {d.action}")
+        print(f"  Healthy:     {d.is_healthy}")
+        print(f"  Output:      {d.output[:120]}...")
+
+    # ── Step 6: Evaluation Report ────────────────────────────────────────
+    print_section("STEP 6: Evaluation Report")
+
+    evaluator = Evaluator(
+        ground_truth=test_set,
+        class_names=class_names,
+    )
+    report = evaluator.evaluate(
+        [d.__dict__ if hasattr(d, '__dict__') else d for d in decisions]
+    )
+
+    print(f"  Total images evaluated:     {report.total_images}")
+    print(f"  Classifier accuracy:        {report.classifier_accuracy:.1%}")
+    print(f"  Correct action rate:        {report.correct_action_rate:.1%}")
+    print(f"  Harmful action rate:        {report.harmful_action_rate:.1%}")
+    print(f"  Naive baseline harmful:     {report.naive_baseline_harmful_rate:.1%}")
+    print(f"  Human intervention rate:    {report.human_intervention_rate:.1%}")
+    print(f"  Direct diagnosis rate:      {report.direct_diagnosis_rate:.1%}")
+    print(f"  Retrieve & reason rate:     {report.retrieve_reason_rate:.1%}")
+    print(f"  Healthy correct rate:       {report.healthy_correct_rate:.1%}")
+    print(f"\n  Action breakdown:")
+    for action, count in sorted(report.action_breakdown.items()):
+        print(f"    {action:30s}: {count:4d} ({count/report.total_images:.1%})")
+    print(f"\n  Ablation (ensemble disagreement):")
+    print(f"    {report.ablation_note}")
+
+    # ── Step 7: Per-class accuracy (top/bottom 5) ───────────────────────
+    if report.per_class_accuracy:
+        print_section("STEP 7: Per-Class Accuracy")
+        per_class = report.per_class_accuracy
+        sorted_classes = sorted(
+            per_class.items(),
+            key=lambda x: x[1]["correct"] / max(1, x[1]["total"]),
+            reverse=True,
+        )
+        print("  Top 5:")
+        for cn, stats in sorted_classes[:5]:
+            acc = stats["correct"] / max(1, stats["total"])
+            print(f"    {cn[:45]:45s}: {acc:.0%} ({stats['correct']}/{stats['total']})")
+        print("  Bottom 5:")
+        for cn, stats in sorted_classes[-5:]:
+            acc = stats["correct"] / max(1, stats["total"])
+            print(f"    {cn[:45]:45s}: {acc:.0%} ({stats['correct']}/{stats['total']})")
+
+    # ── Step 8: Class coverage report ────────────────────────────────────
+    print_section("STEP 8: Class Coverage Report (for paper)")
+    # In Phase 1, no retrieval happens, so all classes are "uncovered"
+    coverage = evaluator.generate_coverage_report(retrieved_class_counts={})
+    print(f"  Total classes:   {coverage['total_classes']}")
+    print(f"  Covered:         {coverage['covered_classes']}")
+    print(f"  Uncovered:       {coverage['uncovered_classes']}")
+    print(f"  Coverage ratio:  {coverage['coverage_ratio']:.1%}")
+    print(f"\n  All 38 classes are UNCOVERED in Phase 1 (retrieval stubbed).")
+    print(f"  Phase 2+3 will populate this after RAG indexing + retrieval.")
+
+    # ── Save results ─────────────────────────────────────────────────────
+    results_path = PROJECT_ROOT / "agents" / "evaluation_results.json"
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(results_path, "w") as f:
+        json.dump(
+            {
+                "mode": args.mode,
+                "num_samples": len(decisions),
+                "report": {
+                    "total_images": report.total_images,
+                    "classifier_accuracy": report.classifier_accuracy,
+                    "correct_action_rate": report.correct_action_rate,
+                    "harmful_action_rate": report.harmful_action_rate,
+                    "naive_baseline_harmful_rate": report.naive_baseline_harmful_rate,
+                    "human_intervention_rate": report.human_intervention_rate,
+                    "direct_diagnosis_rate": report.direct_diagnosis_rate,
+                    "retrieve_reason_rate": report.retrieve_reason_rate,
+                    "action_breakdown": report.action_breakdown,
+                    "ablation_note": report.ablation_note,
+                },
+                "coverage_report": coverage,
+            },
+            f, indent=2,
+        )
+    print(f"\n  Results saved to: {results_path}")
+    orchestrator.flush_log()
+    print(f"  Decision log:    {log_path}")
+
+    print_section("PHASE 1 COMPLETE")
+    print("  The agentic skeleton is sound.")
+    print("  Next: Phase 2 — Index corpus with RAG project's own pipeline.")
+    print("        Phase 3 — Connect real retrieval + reasoning.")
+
+
+if __name__ == "__main__":
+    main()

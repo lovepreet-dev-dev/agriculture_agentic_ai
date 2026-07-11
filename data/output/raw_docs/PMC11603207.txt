@@ -1,0 +1,540 @@
+TITLE: Enhanced Disease
+Resistance Mechanism of the CmoAP2/ERF
+Transcription Factor in Pumpkin through Genetic Mutations
+URL: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11603207/
+
+
+The squash species Cucurbita moschata has been historically utilized by both animals and humans as a food
+source. It is an annual dicotyledonous vegetable known for its health
+benefits, including reducing the risk of various diseases, such as
+cancer, high blood pressure, diabetes, intestinal disorders, and atherosclerosis,
+in humans. However, the cultivation of this valuable crop is often
+challenged by diseases such as powdery mildew (PM), caused by the
+fungus Podosphaera xanthii . PM not
+only reduces yield but also impacts photosynthesis rates. A newly
+identified gene called CmoCh3G009850 , which encodes
+the transcription factor known as AP2-like ethylene-responsive factor
+(CmoAP2/ERF), has been marked for resistance against PM. A shift in
+the state from susceptible to resistant can be induced by nonsynonymous
+SNP mutations at five locations of the CmoCh3G009850 gene. The dynamical studies of the wild-type (WT) and mutated-type
+AP2/ERF proteins’ interactions with DNA were explored by docking
+and molecular dynamics simulation studies. These five mutations T105A,
+S302R, H321R, H335D, and V402A are incorporated in the AP2/ERF transcription
+factor that makes a stable and compact complex with DNA rather than
+the WT protein. Overall, the identification and characterization of
+the CmoAP2/ERF gene and its variants represent a
+significant advancement for the breeding and cultivation of C. moschata varieties resistant against powdery mildew.
+This study not only enhances our understanding of plant–pathogen
+interactions but also provides a potential avenue for developing more
+resilient squash varieties through genetic improvement.
+Pumpkin ( Cucurbita moschata ) is
+a versatile and widely cultivated edible plant enjoyed both as a vegetable
+and for its medicinal properties across various regions, including
+Europe, Asia, and parts of the Americas. The plant is valued not only
+for its fruits but also for its seeds and greens, making it an important
+multifunctional food source. 1 In terms
+of nutrition, pumpkin is noted for its low-fat content, high protein
+richness, and good antioxidant compounds, which makes it a favorable
+choice for dietary inclusion, especially in regions where protein
+sources may be limited. 2 , 3
+Beyond its nutritional value,
+pumpkin has gained significant attention
+in the medical field due to its bioactive compounds. These compounds
+exhibit a wide range of health-promoting properties, including anti-inflammatory,
+antiparasitic, antimicrobial, anticarcinogenic, antioxidant, antidiabetic,
+hepatoprotective, and hypotensive. 4 , 5 These diverse
+health benefits underline the potential of pumpkin as a functional
+food and a natural source of bioactive compounds with therapeutic
+properties. Its widespread cultivation and consumption in various
+cultures highlight its nutritional and medicinal significance globally.
+Plants have developed regulatory mechanisms to adapt against the
+dynamic changes in the environment that affect their survival, growth,
+and reproduction. Globally massive agricultural losses have resulted
+due to various abiotic stresses. 6 These
+environmental factors, such as high salinity, water scarcity, and
+extreme temperature, affect particular plant hormone signaling pathways
+and are controlled through specific hormones and transcription factors
+belonging to these stress responses. Under abiotic stress, plants
+produce several hormones such as ethylene (ET) and abscisic acids
+(ABAs), which are produced as stress hormones, while gibberellins
+(GAs), brassinosteroids (BRs), and cytokinins (CTK) are produced in
+different amounts to promote plants’ growth. Changing these
+substances facilitates the best responses to be achieved. 7 During abiotic stress, these hormones are regulated
+by hormone- and stress-responsive transcription factors. 8 The transcription factor belonging to the APETALA2/ETHYLENE
+RESPONSIVE FACTOR (AP2/ERF) family is now recognized as an important
+modulator of numerous abiotic stresses along with multiple hormone
+responses for managing external stress in plants 9 and regulating fruit development. 10 Some biomarkers are linked with control of biotic 11 , 12 and abiotic stress in the plants and are responsible for several
+diseases in human beings, like breast cancer. 13
+The first reported ERF domain as a conserved motif in four
+DNA-binding
+proteins in Nicotiana tabacum (tobacco)
+is the ethylene-responsive element-binding proteins 1, 2, 3, and 4
+(EREBP1, 2, 3, and 4). And now they are renamed as ERF1, 2, 3, and
+4, and they interact with the GCC box of DNA sequence. 14 The ERF family in plants is classified into
+four subgroups due to ancient transposition, homing process, and tandem
+as well as chromosomal/segmental duplication. 15 ERF family proteins have several diverse functions to regulate the
+cellular processes in order to control abiotic stresses such as low
+temperature, water deficit and drought, 16 − 18 and high-salt- and cold-responsive
+conditions. 19 The AP2 or ethylene responsive
+element binding factor (EREB) domain of AP2/ERF has 40–70 conserved
+amino acids for binding with DNA segments. 15 , 20
+The fungus Podosphaera xanthii lowers
+the rate of photosynthesis and causes powdery mildew (PM) on pumpkin
+leaves. The novel gene belonging to AP2-like ethylene-responsive transcription
+factor (CmoAP2/ERF), which is responsible for resistance against PM,
+was reported in the genome-wide association study (GWAS) study of
+healthy pumpkin seedlings. 21 Nonsynonymous
+single nucleotide mutations affect the structural and functional properties
+of proteins. 22 Certain protein mutations
+termed as disease-causing mutations have been shown to improve susceptibility
+or vulnerability, but sometimes these mutations behave oppositely.
+The study by Alavilli et al., 2022, focused on the AP2/ERF protein
+extracted from a genome-wide association study (GWAS) of pumpkin ( C. moschata ), specifically investigating its role
+in resistance against powdery mildew caused by Pseudomonas
+xanthii . 100 According to
+their findings, five nonsynonymous mutations were identified within
+the AP2/ERF protein sequence which were associated with resistance
+against this fungal disease. These mutations were hypothesized to
+alter the protein’s structure and function, thereby enhancing
+its ability to confer resistance. To delve deeper into the molecular
+mechanisms behind this resistance, we analyzed the DNA–protein
+interaction patterns of both the wild-type (WT) and mutant-type AP2/ERF
+proteins. We employed molecular dynamics (MD) simulations to observe
+the dynamic behavior of these protein–DNA complexes over time.
+MD simulations are computational techniques used to model the movements
+and interactions of atoms and molecules over a time scale. 23 By subjecting the protein–DNA complexes
+to MD simulations, we aimed to elucidate how these mutations affect
+the stability and dynamics of the complexes. Specifically, we observed
+how the mutated AP2/ERF proteins bind to DNA sequences involved in
+regulating the resistance pathways against PM.
+The mutations
+identified in the AP2/ERF protein are proposed to
+play a critical role in regulating these resistance pathways in pumpkins.
+By understanding the structural and dynamic changes induced by these
+mutations through computational modeling, we provided insights into
+how these genetic variations can influence disease resistance in crops
+like C. moschata . This knowledge would
+be invaluable in future breeding efforts aimed at developing more
+resilient pumpkin varieties through targeted genetic manipulation.
+The protein sequence
+of AP2/ERF was extracted from the Supporting Information of the GWAS study on Pumpkin ( C. moschata ) as published by Alavilli et al., 2022. Since the protein’s
+three-dimensional structure was not yet available in the protein data
+bank, we used an I-TASSER server to model the protein. 24 , 25 The SAVES server ( https://saves.mbi.ucla.edu/ ) was used for the quality assessment of the modeled structure by
+using ERRAT, 26 VERIFY 3D, 27 , 28 and PROCHECK. 29 We performed molecular
+dynamics simulation at 50 ns to refine the modeled structure AP2/ERF
+using GROMACS 30 ·
+DNA sequences
+have been obtained from the PDB (PDB id 7WQ5 ), which is bound with an ethylene-responsive
+transcription factor WRI1 of Arabidopsis thaliana . 31 Using the HDOCK server, DNA was docked
+with the AP2/ERF protein by choosing advanced parameters that specified
+the binding site residues, which are based on a template-based docking
+procedure. 32 The site-directed mutagenesis
+at five residues was carried out by PyMol, and subsequently, the structure
+was equilibrated and minimized by GROMACS. 33 − 36 Finally, the mutated minimal
+structure was docked with DNA by HDOCK again.
+Molecular
+dynamics (MD) simulations are a powerful tool for understanding the
+dynamic behavior, stability, and flexibility. 37 We performed MD simulations for the wild-type (WT) and mutated AP2/ERF
+protein–DNA complexes at atomic resolution, complementing the
+experimental techniques. The amber99bsc1 force field was used to simulate
+both the WT and mutant protein–DNA complexes. The force field
+file was downloaded from the Gromacs Web site. 38 The complexes were solvated in a cubic box with edges of
+12.39 Å using the TIP3P water model. The system was neutralized
+by adding Na + and Cl – ions, and steric
+clashes were resolved through 50,000 iterations of energy minimization
+using the steepest descent method with a cutoff of 1000 kJ/mol. Two-phase
+equilibration was performed to ensure the stability of the solvent
+molecules and ions. The temperature was stabilized using the NVT ensemble at 300 K, and the pressure was equilibrated
+using the NPT ensemble at 1 atm, running for 100
+ps each. Finally, MD simulations of the WT and mutated protein–DNA
+complexes were conducted for 100 ns.
+Different dynamics
+parameters of complexes were analyzed by modules available in Gromacs
+to understand the biomolecular behavior of complexes. It provided
+a detailed explanation of the behavior of the atoms in the complexes
+over time. First, we indexed the protein–DNA complexes through
+the make_ndx module. Four stability parameters, i.e.,
+root-mean-square deviation (RMSD), root-mean-square fluctuation (RMSF),
+the radius of gyration (Rg), and solvent-accessible surface area (SASA), 39 were used for the complex analysis. The RMSD,
+RMSF, Rg, and SASA were determined by rms , rmsf , gyrate , and sasa modules, respectively. The obtained xvg files were analyzed and
+visualized by Xmgrace. 40 Hydrogen bond
+distribution is another parameter to determine the stability of the
+complex. Therefore, the hbond module was used for
+the distribution of hydrogen bonds between the protein and DNA over
+time. The structural dynamics of the protein–DNA complex during
+MD simulations were investigated by principal component analysis (PCA).
+It unravels the collective motions within the protein–DNA complex.
+Two modules, covar and anaeig , were
+finally used for the PCA.
+The protein
+sequence of AP2/ERF was obtained from a GWAS study of C. moschata . 21 They observed
+that mutation in the AP2/ERF gene was involved in
+resistance against the powdery mildew caused by the fungus P. xanthii . The proposed protein
+sequence is very unique and does not show homology with any other
+proteins present in the PDB database. That is why a three-dimensional
+structure was modeled for this protein by threading or ab initio (hybrid)
+modeling methods. I-TASSER was used for hybrid modeling of the AP2/ERF
+protein sequence ( Figure 1 a). It gave different predicted models using the folds of
+various PDB structures ( 7WQ5 , 2OCW , 2NBI , 5FMW , 8WXB , and 5WX9 ).
+(a) Modeled three-dimensional
+structures of AP2/ERF by I-TASSER.
+(b) After simulation; (c) aligned structures before and after simulation;
+Ramachandran plot of AP2/ERF structures (d) before and (e) after simulation.
+Initially, the modeled protein structure did not meet the criteria
+for a good-quality structure. Only 65.2% of residues were within the
+allowed regions of the Ramachandran plot, while 27.8% were within
+additional allowed regions ( Figure 1 d and Table 1 ). This indicates that a significant portion of the protein
+structure deviated from ideal structural conformations. Following
+MD simulation, which involved analyzing the RMSD, RMSF, and Rg, it
+was observed that the structure became stable over time ( Figure S1 ), and the dimensional confirmation
+in the cartoon model is shown in Figure 1 b. The RMSD, a measure of structural deviation
+from the starting structure, indicated that the protein structure
+stabilized during the simulation. After 50 ns of MD simulation, there
+was an improvement in the quality of the modeled structure. Now, 82.5%
+of the residues were in favored regions (indicating they were within
+favorable conformational parameters), and 14.9% were in additional
+allowed regions ( Figure 1 e and Table 1 ). This
+suggests that the structure became more closely aligned with the expected
+structural norms. Comparing the initial modeled structure with the
+structure after MD simulation, the RMSD value was 12.136 ( Figure 1 c). This value indicates
+the average distance between equivalent atoms in the two superimposed
+structures, reflecting the degree of structural variation between
+the initial and the simulated structures.
+Proteins’ associated structural topologies support a thorough
+analysis of the structural perturbations caused by mutations which
+exhibit the pathogen interactions. 41 , 42 The WT AP2/ERF
+protein was mutated at five positions, i.e., T105A, S302R, H321R,
+H335D, and V402A. For stability and structural minimization, the mutated
+structure was simulated at 5 ns. The RMSD value gives information
+on the differences between the backbones of the proteins. After mutations,
+the RMSD between WT and mutated AP2/ERF protein structures was 3.633
+nm. The ratio of residues in the Ramachandran plot region can be seen
+in Figure 2 a and the
+fourth column of Table 1 . When compared to the WT protein, the mutated structure’s
+quality is slightly improved. Three-dimensional conformational changes
+in the WT (blue) and mutated (magenta) AP2/ERF proteins are shown
+in Figure 2 b. Sequences
+of proteins have specific structures and functions defined as motifs,
+also termed as supersecondary structures. The reported protein was
+491 amino acids long, and they have two major motifs belonging to
+the AP2/ERF family ( Figure 2 c).
+Pictorial representation of the (a) Ramachandran plot of mutated
+AP2/ERF protein, (b) superimposed structures of wild and mutated proteins
+(blue–wild type and magenta–mutated type), (c) conserved
+motifs, and (d) 3D structure of DNA helix.
+The two
+most important biological molecules of the cell are proteins and DNA.
+The protein–DNA interactions regulate many biological processes
+such as cell regulation, DNA replication, signal transduction, protein
+synthesis, and many more. Therefore, the docking of protein and DNA
+helps us to understand the atomic-level behavior of complexes in the
+biological process used to develop a new variety and resistance crop.
+The WRINKLED1 (WRI1) regulator is involved in oil synthesis in A. thaliana , and it belongs to the APETALA2 (AP2)/EREBP
+transcription family. 31 , 43 The structure of the 24 nucleotide
+long DNA sequence (5′-TACTTCCTCGGTTTCATCGTCCAC) was obtained
+from the bound form with transcriptional factor WRINKLED1 (PDB: 7WQ5 ).
+Figure 3 displays both two-
+and three-dimensional depictions of the WT protein–DNA interaction.
+Thirteen hydrophobic interactions and seven hydrogen bonds were detected
+in the complex. Seven residues (Ser25, Glu27, Arg37, Met74, Gln75,
+Arg397, and Thr418) of protein are involved in the formation of hydrogen
+bonds with four nucleotides of the 5′ to 3′ strand (5T,
+16A, 17T, and 18C) and two nucleotides of the 3′ to 5′
+strand (4G and 23T).
+WT target protein–DNA docked complex (a) backbone
+and base
+nucleotide representation, (b) base interaction nucleotide representation,
+and (c) 2D representation of interactions (green dotted line for hydrogen
+bonds and semicircle for hydrophobic bonds). (a,b) are made by PDIviz
+1.24a, 44 and (c) are drawn by LigPlot. 45
+The mutant protein–DNA complex’s
+interactions (two-
+and three-dimensional representations) are illustrated in Figure 4 . The interactions
+between the mutated protein and DNA comprise 13 hydrophobic interactions
+and six hydrogen bonds. Protein residues Pro338, Gly340, Ser341, His346,
+Arg365, and Asn385 build hydrogen bonds with two nucleotides of the
+3′ to 5′ strand (6C and 10G) and four nucleotides of
+the 5′ to 3′ strand (13T, 14T, 15C, and 21C). Table S1 provides further details, including
+additional interaction and surface properties of WT and mutant protein–DNA
+complexes.
+Mutated target protein–DNA docked complex (a) backbone and
+base nucleotide representation, (b) base interaction nucleotide representation,
+and (c) 2D representation of interactions (green dotted line for hydrogen
+bonds and semicircle for hydrophobic bonds).
+The trajectory analysis of the MD simulations for the protein–DNA
+complex, before and after mutation, reveals significant insights into
+the structural dynamics and stability of the complexes.
+Figure 5 a illustrates the
+RMSD values of the protein–DNA complexes over a 100 ns simulation
+period. The black line represents the RMSD of the wild-type transcription
+factor-DNA complex, while the red line corresponds to the mutated
+TF-DNA complex. The average RMSD for the wild-type complex (black)
+is approximately 1.2 nm, with fluctuations ranging between 0.8 and
+1.5 nm. The mutated complex (red) shows a lower average RMSD of around
+0.9 nm, with fluctuations ranging between 0.5 and 1.2 nm. Initially,
+both complexes exhibit similar RMSD values, indicating comparable
+structural conformations. However, as the simulation progresses, the
+wild-type complex shows higher RMSD fluctuations, suggesting greater
+structural instability. In contrast, the mutated complex maintains
+lower RMSD values, indicating enhanced stability. This suggests that
+the mutation confers structural rigidity to the protein–DNA
+complex, potentially contributing to the observed resistance against P. xanthii .
+Trajectory analysis of molecular dynamics simulation
+of the protein–DNA
+complex before (black) and after (red) mutation, (a) RMSD, (b) Rg,
+(c) RMSF of protein, (d) RMSF of DNA, (e) hydrogen bond distribution,
+and (f) SASA.
+The observed reduction in RMSD for the mutated
+complex is consistent
+with previous studies indicating that specific mutations can lead
+to enhanced structural stability of protein–DNA complexes. 46 , 47 Enhanced stability often correlates with improved functional performance,
+particularly in transcription factors where stable binding to DNA
+is critical for effective gene regulation. 48
+Rg reflects
+the compactness of the protein structure. Figure 5 b shows that the Rg for the wild-type complex
+fluctuates around an average of 3.0 nm, whereas the mutated complex
+maintains a lower average Rg of approximately 2.8 nm. Both complexes
+display fluctuations throughout the simulation, but the mutated complex
+(red) exhibits a consistently lower Rg compared to the wild-type complex
+(black). This decreased Rg for the mutated complex suggests a more
+compact and stable structure, further supporting the enhanced stability
+observed in the RMSD analysis. A more compact structure may enhance
+the ability of the protein to interact with DNA, thereby improving
+its functional efficiency in binding to DNA and regulating gene expression
+related to powdery mildew resistance.
+Compactness, as indicated
+by lower Rg values, is often associated with improved protein–DNA
+binding affinity and specificity. 49 This
+structural compactness can facilitate the proper positioning of critical
+residues in the DNA-binding domain, enhancing the transcription factor’s
+ability to recognize and bind to its target DNA sequences. 50
+The
+RMSF analysis, shown in Figure 5 c,d, provides residue-level insights into the flexibility
+of the protein and DNA, respectively. For the protein ( Figure 5 c), the wild-type complex exhibits
+higher fluctuations across several residues, indicating greater flexibility
+and potential instability. The mutated complex, however, shows reduced
+fluctuations, particularly in regions critical for DNA binding. For
+DNA ( Figure 5 d), the
+wild-type complex also demonstrates higher RMSF values, suggesting
+a less stable interaction with the protein. The mutation results in
+lower RMSF values, highlighting a more stable protein–DNA interaction.
+Reduced RMSF values in the mutated complex suggest that the mutation
+leads to a decrease in conformational flexibility, thereby stabilizing
+the interaction between the protein and DNA. This stabilization is
+crucial for maintaining the integrity of the protein–DNA complex
+during the dynamic processes of gene regulation. 51 , 52 Enhanced stability in critical binding regions can improve the transcription
+factor’s ability to modulate gene expression effectively, contributing
+to increased resistance against pathogens such as P.
+xanthii . 53
+Figure 5 e presents the hydrogen
+bond distribution over the simulation period. The wild-type complex
+(black) shows an average of 7 hydrogen bonds, with fluctuations indicating
+instability. The mutated complex (red) exhibits a higher average of
+10 hydrogen bonds with fewer fluctuations, suggesting more stable
+interactions. This indicates that the mutation enhances the formation
+of hydrogen bonds, thereby stabilizing the protein–DNA interaction
+and potentially contributing to the resistance mechanism against P. xanthii .
+Hydrogen bonds play a critical
+role in stabilizing protein–DNA interactions, and an increase
+in hydrogen bonding can significantly enhance the binding affinity
+and stability of the complex. 54 , 55 The observed increase
+in hydrogen bonds in the mutated complex suggests that the mutation
+enhances the intermolecular interactions, thereby stabilizing the
+complex and potentially improving its functional performance in gene
+regulation. 56
+The SASA values, illustrated in Figure 5 f, reflect exposure of the protein–DNA
+complex to the solvent. Lower SASA values indicate a more compact
+and less solvent-exposed complex. Figure 5 f shows that the SASA for the wild-type complex
+(black) is higher, with an average of 410 nm, 2 indicating greater exposure to the solvent. The mutated complex
+(red) has a lower average SASA of approximately 390 nm, 2 suggesting reduced solvent exposure and a more
+compact structure. This compactness may protect the complex from deleterious
+environmental interactions, enhancing its functional stability.
+A lower SASA value indicates a more buried and compact structure,
+which can enhance the stability of the protein–DNA complex
+by reducing the exposure of hydrophobic regions to the solvent. 57 This compactness is likely to contribute to
+the overall structural stability and functional efficiency of the
+transcription factor in regulating gene expression. 58
+The allelic variation in the CmoCh3G009850 gene,
+encoding the AP2-like ethylene-responsive transcription factor (CmoAP2/ERF),
+appears to play a crucial role in conferring resistance to powdery
+mildew in pumpkins. The MD simulation results indicate that the mutation
+stabilizes the protein–DNA complex, as evidenced by lower RMSD,
+RMSF, and SASA values along with a higher number of stable hydrogen
+bonds. This structural stability likely enhances the binding efficiency
+of the transcription factor to its target DNA, thereby improving the
+regulation of genes involved in defense responses against P. xanthii .
+PCA is a powerful statistical tool used to simplify
+the complexity of high-dimensional data while retaining most of the
+variation in the data set. In the context of molecular dynamics simulations,
+PCA helps us to understand the major conformational changes in protein–DNA
+complexes. Figure 6 presents the PCA results for the wild-type (susceptible) and mutated
+transcription factor (TF)-DNA complexes, providing insights into their
+structural dynamics.
+Principal component analysis (PCA) of the protein–DNA
+complex
+before (black) and after (red) mutation. (a) 2D projection trajectory,
+(b) projection on eigenvectors, and (c) RMS fluctuation. Eigenvector
+components (d) before mutation and (e) after mutation.
+Figure 6 a shows
+the 2D projection of the trajectory onto the first two principal components
+(eigenvectors) for the wild-type (black) and mutated (red) protein–DNA
+complexes. The wild-type complex has a broader distribution with projections
+ranging from −25 to 25 nm, indicating higher conformational
+flexibility. The mutated complex has a narrower distribution, ranging
+from −15 to 15 nm, suggesting reduced flexibility and more
+restricted motion. This compactness of the mutated complex could contribute
+to its increased resistance to P. xanthii by maintaining a stable interaction with the DNA. Reduced conformational
+flexibility, as observed in the mutated complex, is often associated
+with enhanced structural stability and functional efficiency during
+protein–DNA interactions. 59 This
+stabilization can facilitate more effective binding and regulation
+of target DNA sequences, contributing to the transcription factor’s
+role in disease resistance. 60
+Figure 6 b presents
+the projection of the trajectories on the first two eigenvectors over
+the 100 ns simulation period. The wild-type complex shows larger fluctuations
+along both eigenvectors, with average projections around ±10
+nm for the first eigenvector and ±5 nm for the second eigenvector.
+In contrast, the mutated complex exhibits smaller fluctuations, with
+average projections around ±5 nm for the first eigenvector and
+±3 nm for the second eigenvector. The pronounced fluctuations
+in the wild-type complex indicate significant conformational changes,
+reflecting its unstable nature. The reduced fluctuations in the eigenvector
+projections for the mutated complex indicate that the mutation promotes
+a more stable conformational landscape, enhancing the functional performance
+of the protein–DNA complex. 61 Stability
+in the conformational landscape is critical for the efficient binding
+and regulation of DNA by transcription factors. 62 This further supports the notion that the mutation leads
+to structural rigidity and stability, which could be crucial to its
+functional role in resistance mechanisms.
+Figure 6 c illustrates
+the RMSF values for the protein–DNA complexes, highlighting
+the flexibility of each residue. The wild-type complex has higher
+RMSF values, particularly in critical regions for DNA binding, with
+average RMSF values around 0.6 nm and peaks reaching 1.0 nm. The mutated
+complex shows reduced RMSF values, with averages around 0.4 nm and
+peaks reaching 0.8 nm, indicating increased rigidity and stability
+in these regions. This stabilization likely contributes to the efficient
+binding of the transcription factor to its target DNA, facilitating
+the effective regulation of genes involved in powdery mildew resistance. Figure 6 d,e displays the
+contributions of individual atomic components to the first and second
+eigenvectors before and after mutation, respectively. The black line
+represents the total motion, while the red, green, and blue lines
+correspond to the x , y , and z components of the motion, respectively. The wild-type
+complex shows higher variability in the contributions, with fluctuations
+ranging from −0.1 to 0.1 for the first eigenvector and from
+−0.05 to 0.05 for the second eigenvector. The mutated complex
+exhibits more consistent and lower variability in the eigenvector
+components with fluctuations ranging from −0.05 to 0.05 for
+the first eigenvector and −0.03 to 0.03 for the second eigenvector.
+This reduction in motion is indicative of a more rigid and stable
+protein–DNA complex, which is likely to enhance its functional
+efficiency in resisting P. xanthii .
+The PCA results provide compelling evidence that the allelic variation
+in the CmoCh3G009850 gene encoding the AP2-like ethylene-responsive
+transcription factor (CmoAP2/ERF) plays a pivotal role in stabilizing
+the protein–DNA complex. The mutation leads to a more compact,
+stable, and less flexible complex, as demonstrated by the reduced
+RMSF values, lower projections on eigenvectors, and focused 2D projection
+trajectory. 63 These structural characteristics
+are likely to enhance the binding affinity and specificity of the
+transcription factor to its target DNA, thereby improving the regulation
+of genes involved in defense responses against powdery mildew in pumpkin.
+Several species of fungi, bacteria, viruses, and oomycete affect
+crop yields through the process of host–pathogen interactions.
+There is a list of fungi which cause various diseases like Alternaria cucumerina (Alternaria leaf blight), 64 Cercospora citrullina (Cercospora leaf spot), 65 Pseudoperonosporacubensis (downy mildew), 66 Fusarium
+solani (Fusarium crown and foot rot), 67 Fusarium oxysporum , 68 Didymella bryoniae (gummy stem blight), 69 Erysiphe spp. (powdery mildew), 70 Septoria cucurbitacearum (Septoria leaf spot), 71 Sclerotium rolfsii (southern blight), 72 and Verticillium dahliae (Verticillium wilt). 73 Bacteria such
+as Pseudomonas syringae (angular leaf
+spot), 74 Erwinia tracheiphila (bacterial wilt), 75 as well as some viruses,
+for example, cucumber mosaic virus (cucumber mosaic) 76 and watermelon mosaic virus (watermelon mosaic), 77 cause serious
+diseases which directly affect crop yields. Phytophthora
+capsici (Phytophthora blight) and Phytophthora
+melonis ( Phytophthora blight) are
+oomycetes that act as pathogens responsible for the crown and fruit
+rotting in pumpkin ( Cucurbita pepo ),
+significantly affecting the yields of crops. 78 − 81
+It is anticipated that
+using pathogen-resistant cultivars will
+boost the yield while reducing the need for fungicides in farming.
+The essential components of the plant defense system that combat various
+pathogens are transcription factors. 82 The
+AP2/ERF family, a crucial transcription factor that has two tandem
+AP2 domains that bind to a dsDNA region, has emerged as the most viable
+option for bioengineering to increase the yield by improving the resistivity.
+The 3-D structure and function of proteins are determined by the
+amino acid patterns. 83 The folding, stability,
+interaction of the protein with other molecules, and overall functionality
+of the protein can all be affected by alterations in the amino acid
+sequences. 84 − 87 The structure and functions of the proteins can be changed when
+the amino acids have been mutated at specific sites, like conserved
+residues; otherwise, the mutation can change its structure but does
+not affect protein function. These mutations in the amino acids are
+a result of DNA markers like SNPs (single nucleotide polymorphism)
+and changes at single positions in plants’ DNA. 88 Finding different SNPs that can be used to build
+new products is now easier because of recent technological advancements.
+It demonstrates how SNPs in the gene’s functional regions can
+alter the expressed region to regulate the levels of biotic and abiotic
+stress while improving the crops’ variety resistance to both. 89
+Compared to the WT protein, the pumpkin
+mutant AP2/ERF protein
+binds more strongly with the DNA, leading to a more stable complex.
+The molecular dynamics simulations reveal that the WT transcription
+factor-DNA complex is less stable and shows significant instability
+during the simulation process. This instability likely contributes
+to the pumpkin’s susceptibility to fungal infection. Conversely,
+the enhanced stability of the mutant protein–DNA complex suggests
+its role in activating various pathways that improve resistance to
+fungal infection. These findings are consistent with studies such
+as of Murmu and Archak (2024), 90 where
+the mutant form of a protein was reported to form a more stable complex
+than its WT counterpart, which exhibited instability. Similarly, Panchal
+et al. (2020) 91 observed that mutations
+in the XPD gene led to altered protein stability, highlighting the
+importance of structural changes in influencing functional outcomes.
+Pumpkins are extremely
+valuable crops that are predominantly utilized
+globally as food items and rootstocks for cucurbits. Still, P. xanthii hampers pumpkin growth and reduces the
+level of plant production. A molecular explanation is provided by
+the in silico investigation of the transcription factor AP2/ERF’s
+interaction with DNA. The enhanced resistance capabilities against
+the fungal infection can be credited to the mutated structure, which
+is more stable than the WT protein, and the same has been confirmed
+in the present study by docking and MD simulation studies of WT and
+mutant protein complexes. The combined trajectory analysis and PCA
+reveal that the mutation in the CmoAP2/ERF gene significantly
+impacts the structural dynamics of the protein–DNA complex.
+The mutation results in a reduced conformational flexibility, increased
+stability, and more coordinated motions within the complex. These
+changes will likely enhance the functional efficiency of the transcription
+factor in regulating genes involved in powdery mildew resistance.
+The findings from these analyses highlight the potential of targeted
+genetic modifications in the development of resistant crop varieties.
+Future studies should include experimental validation through in vivo
+experiments to confirm these computational predictions and further
+elucidate the molecular mechanisms underlying powdery mildew resistance
+in pumpkins.
+The data presented
+in this study are available in this article and the accompanying Supporting Information .
+The Supporting Information
+is
+available free of charge at https://pubs.acs.org/doi/10.1021/acsomega.4c06748 . RMSD, RMSF, and Rg of the simulated AP2/ERF
+modeled structure and list of different parameters of WT protein–DNA
+and mutated protein–DNA complexes ( PDF )
+RMSD, RMSF, and Rg of the simulated AP2/ERF
+modeled structure and list of different parameters of WT protein–DNA
+and mutated protein–DNA complexes ( PDF )
+ao4c06748_si_001.pdf
+⊥ M.R. and
+S.M. contributed equally. S.K. and M.R. conceived the
+idea; S.M., M.R., and M.K.S. performed the in silico analysis; S.M.,
+M.R., and S.K. critically analyzed the study and drafted the manuscript;
+S.K., R.S., A.C., and G.K.J. edited as well as performed the proofreading
+of the manuscript.
+The authors
+declare no competing financial interest.
+We gratefully acknowledge the CABin grant (F. no.
+Agril. Edn.4-1/2013-A & P), Indian Council of Agricultural Research,
+Ministry of Agriculture and Farmers’ Welfare, Govt. of India,
+and ICAR-Indian Agricultural Statistics Research Institute, New Delhi,
+for providing facilities and support. We acknowledge the Department
+of Biotechnology, Govt. of India, for the BIC project grant (BT/PR40161/BTIS/137/32/2021).

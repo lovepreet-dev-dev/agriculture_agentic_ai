@@ -1,0 +1,296 @@
+TITLE: YOLOv11-AIU: a lightweight detection model for the grading detection of early blight disease in tomatoes
+URL: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12376411/
+
+Tomato early blight, caused by Alternaria solani , poses a significant threat to crop yields. Existing detection methods often struggle to accurately identify small or multi-scale lesions, particularly in early stages when symptoms exhibit low contrast and only subtle differences from healthy tissue. Blurred lesion boundaries and varying degrees of severity further complicate accurate detection. To address these challenges, we present YOLOv11-AIU, a lightweight object detection model built on an enhanced YOLOv11 framework, specifically designed for severity grading of tomato early blight. The model integrates a C3k2_iAFF attention fusion module to strengthen feature representation, an Adown multi-branch downsampling structure to preserve fine-scale lesion features, and a Unified-IoU loss function to enhance bounding box regression accuracy. A six-level annotated dataset was constructed and expanded to 5,000 images through data augmentation. Experimental results demonstrate that YOLOv11-AIU outperforms models such as YOLOv3-tiny, YOLOv8n, and SSD, achieving a mAP@50 of 94.1%, mAP@50–95 of 93.4%, and an inference speed of 15.67 FPS. When deployed on the Luban Cat5 platform, the model achieved real-time performance, highlighting its strong potential for practical, field-based disease detection in precision agriculture and intelligent plant health monitoring.
+Tomatoes are widely cultivated and consumed due to their high nutritional and economic value [ 1 ]. During cultivation, tomato plants are frequently affected by various diseases, including early blight, gray mold, late blight, and leaf mold. Among these, early blight poses the most severe threat, particularly during the flowering and fruiting stages, significantly reducing both yield and quality [ 2 ]. Tomato early blight is a devastating foliar disease caused by several species of Alternaria and is characterized by high genetic variability [ 3 ]. The pathogen rapidly infects host plants, forming lesions within two to three days after penetration [ 2 ]. Typical symptoms include brown spots that expand quickly and coalesce, ultimately leading to defoliation. This not only impairs photosynthesis but also disrupts fruit development, resulting in yield losses exceeding 30% under severe conditions [ 3 ].
+Recent advances in computer vision and deep learning have opened new avenues for crop disease detection. While notable progress has been made in tomato disease classification [ 4 – 9 ], research on the early detection and severity grading of tomato early blight remains limited. Traditional approaches often rely on hyperspectral imagery combined with handcrafted features such as color and texture, along with classical machine learning algorithms, to perform preliminary lesion localization and early detection [ 10 ]– [ 11 ].In contrast, deep learning methods have significantly improved recognition accuracy and robustness through architectural optimization and multi-scale feature integration. Examples include multi-scale recognition using CNN fusion modules [ 12 ], severity assessment with convolutional neural networks [ 13 ], precise lesion segmentation and severity classification using Transformer architectures [ 14 ], and severity prediction via support vector regression (SVR) models incorporating meteorological variables [ 15 ]. Recently developed network architectures, such as ResNet101 [ 16 ], EfficientNet [ 17 ], and PDS-MCNet—which integrates MobileNetV2 with Capsule Networks [ 18 ]—have shown notable improvements in both detection accuracy and severity classification.A comprehensive analysis indicates that current deep learning–based methods for tomato disease detection have achieved promising results in both accuracy and speed. However, many existing studies fail to sufficiently address the challenges posed by irregular lesion morphology, blurred boundaries, multi-scale targets, and ambiguous severity levels—especially during the early stages of infection when lesions exhibit subtle differences from healthy areas and low contrast, making accurate segmentation and classification particularly difficult.
+Additionally, farmers in real-world agricultural settings often face challenges such as misdiagnosis, poor-quality images captured under varying lighting and weather conditions, and difficulty in detecting subtle early-stage symptoms. These issues frequently result in delayed or inaccurate disease identification, leading to significant crop losses. Traditional detection methods are often ineffective under such conditions due to environmental noise, limited image quality, and the difficulty of recognizing early symptoms with minimal visual distinction.These limitations underscore the need for advanced detection models like YOLOv11-AIU, which can handle low-quality field images and accurately detect even subtle lesion changes in the early stages of disease.
+To address these challenges, this study proposes YOLOv11-AIU, a lightweight detection model specifically designed for severity grading of tomato early blight in complex agricultural environments. The model incorporates the following key innovations:
+Iteratively integrates local texture and global semantic features to enhance the model’s ability to detect blurred lesion boundaries and distinguish adjacent severity levels.
+Employs a multi-branch lightweight downsampling strategy to preserve fine-grained lesion features and improve detection of early-stage and small-scale disease spots.
+Dynamically adjusts bounding box regression through quality-aware weighting and confidence-guided optimization, significantly improving localization accuracy in cases involving overlapping lesions and unclear class boundaries.
+Tomato early blight primarily affects the leaves, flowers, stems, and fruits, with symptoms varying depending on the severity of infection. The typical symptom is the appearance of dark necrotic lesions with concentric ring patterns and yellow halos around the margins. On leaves, the initial infection appears as pinhead-sized black spots. As the disease progresses, these lesions enlarge into circular or irregular brown spots, often surrounded by light green or yellow halos, with the centers displaying distinct concentric rings. Under humid conditions, black mold composed of conidiophores and conidia may develop on the lesion surfaces. When the stem is infected, dark brown, irregular, circular or elliptical lesions appear near branching points and are often covered with grayish-black mold.
+Figure 1 (a) shows a healthy tomato leaf without visible symptoms. Figure 1 (b) illustrates a leaf in the micro stage of early blight, characterized by tiny dark brown or black specks. Figure 1 (c) represents the early stage, where lesions expand into round or oval spots with dark brown edges. Figure 1 (d) shows the middle stage, where the lesion centers turn grayish-brown with pronounced concentric rings, surrounded by a yellow halo. In the late stage, as shown in Fig. 1 (e), black mold appears on the lesion surface, indicating the formation of conidiophores and conidia. Figure 1 (f) depicts the terminal stage of infection, in which the leaf becomes entirely necrotic and dies.
+Fig. 1 This study uses images of healthy tomato leaves and those affected by early blight
+This study uses images of healthy tomato leaves and those affected by early blight
+To evaluate YOLOv11-AIU, we constructed a dataset of tomato leaf images captured using an iPhone 14 Pro. In the early stages of the disease, lesions exhibit subtle differences from healthy regions, with low contrast and often blurred boundaries, making accurate segmentation and classification particularly challenging. To reduce variation, the camera position was fixed and lighting conditions were kept consistent.The dataset comprises 600 images of healthy leaves and 1,790 images of early blight–infected leaves sourced from the PlantVillage dataset. These infected samples were categorized into six severity levels based on the GB/T 17980.31–2000 standard and the observed progression of the disease.Data augmentation techniques—including cropping, flipping, and brightness adjustment—were applied, expanding the dataset to a total of 5,000 images. The dataset was then divided into training, testing, and validation sets using an 8:1:1 ratio (Table 1 ).
+Table 1 Grading and dataset composition for tomato early blight Disease grade (Feature) Train Test Valid Total Grade 0 (No symptoms) 501 61 57 619 Grade 1 (Lesion area < 5%) 340 40 40 420 Grade 3 (Lesion area 6–10%) 501 67 62 630 Grade 5 (Lesion area 11–20%) 763 98 79 940 Grade 7 (Lesion area 21–50%) 1121 144 136 1401 Grade 9 (Lesion area > 50%) 821 78 91 990
+Grading and dataset composition for tomato early blight
+In this study, YOLOv11 is employed as the baseline model for grading the severity of tomato early blight. The YOLO series has garnered widespread recognition in object detection tasks due to its compact architecture, rapid inference speed, and efficient training process. YOLOv11 builds upon these advantages by further enhancing detection accuracy and robustness through architectural refinements and advanced training strategies [ 19 ]. In agricultural image analysis, YOLOv11 demonstrates a compelling balance between real-time performance, multi-scale object localization, and accurate category discrimination. However, applying YOLOv11 directly to the task of severity grading for tomato leaf early blight presents several notable challenges. First, lesion areas often exhibit irregular shapes, blurred boundaries, and subtle transitions across severity levels, making it difficult for standard convolutional networks to extract sufficiently discriminative features. Second, the lesions vary significantly in scale, with mild symptoms typically appearing as small, low-contrast regions. These features are prone to being compressed or neglected during downsampling, thereby compromising detection accuracy. Third, during bounding box regression, conventional models often fail to sufficiently emphasize high-quality predictions, leading to localization drift and severity misclassification.
+To address these limitations, this paper introduces YOLOv11-AIU, a lightweight detection model specifically optimized for tomato early blight images. The proposed enhancements include three core components: (1) the incorporation of an iterative attention fusion module, C3k2_iAFF, designed to improve the extraction and representation of complex semantic features within lesion regions; (2) the development of a lightweight multi-branch downsampling module, Adown [ 20 ], which preserves fine-grained structural details and boundary textures; and (3) the integration of a Unified-IoU loss function [ 21 ], which dynamically enhances the model’s sensitivity to high-quality bounding boxes, particularly in scenarios characterized by fuzzy lesion edges and closely resembling severity grades. The overall architecture of the improved network is illustrated in Fig. 2 .
+Fig. 2 Diagram of the Improved YOLOv11 Architecture
+Diagram of the Improved YOLOv11 Architecture
+The main improvements proposed in this study consist of the following three components: Iterative Attention Feature Module: C3k2_iAFF
+Iterative Attention Feature Module: C3k2_iAFF
+Building upon the YOLOv11 framework, this study introduces an iterative attention feature fusion mechanism—iAFF [ 22 ]—to replace the original C3k2 module. This modification significantly enhances the model’s capability to capture semantic features in lesion regions and improves spatial attention, thereby increasing the accuracy of tomato early blight severity grading. In the early stages of infection, lesions often exhibit minimal contrast, blurred boundaries, and subtle differences from healthy tissue, posing substantial challenges for conventional detection methods. The C3k2_iAFF module addresses these issues by refining the model’s focus on critical features that distinguish diseased areas, even when differences are barely perceptible.
+As depicted in Fig. 3 (a), the C3k2_iAFF module adopts a lightweight structure comprising a main path and a residual path. The main path contains two Bottleneck_iAFF units (Fig. 3 (b)), which are responsible for extracting semantic features from lesion regions. The residual path directly propagates the original features, thereby enhancing feature retention and stabilizing gradient flow. Unlike traditional residual structures that rely on simple summation operations, the Bottleneck_iAFF unit integrates two cascaded iAFF modules at the end of the main path. These modules iteratively fuse the output of the main path with its input, reinforcing contextual consistency and feature distinction. The internal structure of the iAFF module is shown in Fig. 3 (c). It consists of two complementary attention branches: a local attention branch, which focuses on lesion texture and edge variations, and a global attention branch, which captures holistic semantic information and disease distribution patterns. These two branches collaboratively generate attention weight maps, which are then used to perform channel-wise feature fusion between the input and output of the main path. This fusion process is executed iteratively twice, resulting in more discriminative, context-aware feature representations that are highly effective for fine-grained lesion analysis.
+Fig. 3 Architecture of the improved C3k2_iAFF module and its feature fusion structure. ( a ) Architecture of the C3k2_iAFF module, consisting of a main path and a residual path; ( b ) Structure of the Bottleneck_iAFF module used in the main path for semantic feature extraction; ( c ) Internal composition of the iAFF module, which includes local and global attention branches for iterative feature enhancement and fusion
+Architecture of the improved C3k2_iAFF module and its feature fusion structure. ( a ) Architecture of the C3k2_iAFF module, consisting of a main path and a residual path; ( b ) Structure of the Bottleneck_iAFF module used in the main path for semantic feature extraction; ( c ) Internal composition of the iAFF module, which includes local and global attention branches for iterative feature enhancement and fusion
+2. Lightweight Downsampling Module: ADown
+Lightweight Downsampling Module: ADown
+Lesions caused by tomato early blight exhibit significant variability in both scale and structure, particularly during the early stages when they often appear as small, low-contrast regions. Traditional downsampling methods based on convolution or pooling operations frequently result in information loss and feature degradation at this stage, thereby impairing the representational capacity of deeper layers in the network.
+To overcome this limitation, the standard downsampling layers in YOLOv11 are replaced with a lightweight, multi-branch downsampling module, termed ADown. As illustrated in Fig. 4 , the ADown module begins with an AvgPool2d operation, which provides initial smoothing and guides feature reconstruction from the backbone input, thereby reducing distortion and preserving contextual continuity. The resulting feature map is then divided into two parallel branches. The main branch applies a 3 × 3 convolution to extract localized structural features, followed by Batch Normalization (BN) and the SiLU activation function to enhance nonlinear feature expression and stabilize training. The auxiliary branch employs a 3 × 3 max pooling layer to emphasize boundary-related features and incorporates a 1 × 1 convolution for channel compression, enabling more compact and efficient feature representation. This branch also includes BN and a nonlinear activation function to improve expressiveness. The outputs from both branches are subsequently fused along the channel dimension to produce a rich, multi-scale feature representation that maintains both local detail and spatial semantics.
+Fundamentally, ADown introduces a heterogeneous perceptual pathway that allows the model to retain fine-grained texture information during the downsampling process. The complementary semantic interactions and redundancy regulation between branches further enrich the diversity and discriminative power of feature representations. Compared to traditional single-path convolutional downsampling, ADown significantly reduces the loss of critical lesion information—particularly in the early stages of infection—and enhances the model’s ability to accurately perceive and distinguish between adjacent severity levels.
+Fig. 4 Structure of the ADown Module
+Structure of the ADown Module
+3. Unified Intersection over Union Loss (Unified-IoU).
+Unified Intersection over Union Loss (Unified-IoU).
+In the task of tomato early blight severity grading, lesion regions often display irregular morphologies, ambiguous boundaries, and substantial scale variations. These characteristics place stringent demands on the bounding box localization capabilities of object detection models. Traditional IoU-based loss functions—such as GIoU, DIoU, and CIoU—focus primarily on optimizing the geometric overlap between predicted and ground truth boxes. While effective in standard object detection tasks, these metrics often exhibit subpar performance in scenarios involving multi-scale lesions, small, low-contrast objects, or adjacent severity categories. In such cases, the optimization becomes insufficient, leading to incomplete convergence and suboptimal attention allocation during model training.
+To enhance boundary sensitivity and accelerate convergence, this study adopts the Unified Intersection over Union (Unified-IoU or UIoU) loss. UIoU introduces a prediction box scaling mechanism that dynamically adjusts the loss weight for predicted boxes of different quality. Let the original predicted box be denoted as \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:P=\left({x}_{p},{y}_{p},{w}_{p}{,h}_{p}\right)$$\end{document} , and the ground truth box as \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:G=\left({x}_{g},{y}_{g},{w}_{g}{,h}_{g}\right)$$\end{document} , where x, y are the center coordinates, and w, h represent width and height, respectively. During training, both predicted and ground truth boxes are scaled as follows: 1 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{P}^{{\prime\:}}=\left(\alpha\:,P\right),$$\end{document} 2 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{G}^{{\prime\:}}=\left(\alpha\:,G\right),$$\end{document}
+Here, \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:\alpha\:>1$$\end{document} enlarges the boxes to emphasize low-quality predictions during early training stages, while \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:\alpha\:<1$$\end{document} shrinks the boxes to refine high-quality predictions in later stages. This scaling alters the IoU calculation and consequently adjusts each box’s contribution to the total loss.
+To achieve dynamic focus shifting throughout the training process, UIoU applies a cosine annealing schedule to the scaling factor \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:\alpha\:$$\end{document} . Let T denote the total number of training epochs and epoch the current epoch, the scaling ratio is defined as: 3 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$rati{o_{epoch}} = 0.75 \cdot cos\left( {{{\pi \cdot epoch} \over T}} \right) + 1.25,$$\end{document}
+This strategy encourages the model to focus more on low-quality predictions in the early stages to accelerate learning, and progressively shift toward high-quality bounding boxes to improve localization precision.
+To enhance the model’s sensitivity to “hard-to-classify” samples, UIoU incorporates the concept of confidence-guided weighting, inspired by Focal Loss. Let \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:c\in\:\left[\text{0,1}\right]\:$$\end{document} represent the classification confidence of the predicted box, the final UIoU loss is defined as: 4 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$${L_{UIoU}} = \left( {1 - c} \right) \cdot \left( {1 - Io{U_{scaled}}} \right),$$\end{document}
+where \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{L}_{UIoU}$$\end{document} is the unified loss, \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:c$$\end{document} is the confidence score, and \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{IoU}_{scaled}$$\end{document} is the intersection-over-union calculated after scaling.
+By incorporating bounding box scaling, cosine-annealed adjustment, and confidence-guided weighting, the Unified-IoU (UIoU) loss function offers refined control over the model’s attention allocation during training. This formulation enhances the localization accuracy of YOLOv11, particularly in challenging scenarios where lesion boundaries are indistinct or where severity levels exhibit subtle visual differences.
+As illustrated in Fig. 5 , the geometric relationships among the ground truth box (yellow), the initial predicted box (pink), and the scaled high-quality prediction box (cyan) are clearly delineated. Through controlled box scaling, UIoU intentionally reduces the overlap between the predicted box and the ground truth, thereby lowering the IoU value associated with high-quality predictions. This reduction results in a higher assigned loss, which in turn compels the model to refine its bounding box predictions with greater precision. Such a mechanism ensures that the model prioritizes accurate localization, even in cases where lesion features are ambiguous or closely resemble neighboring severity categories.
+Fig. 5 Schematic illustration of the IoU loss adjustment mechanism based on predicted box scaling
+Schematic illustration of the IoU loss adjustment mechanism based on predicted box scaling
+All experiments were conducted on a workstation running Windows 11, equipped with an Intel(R) Core(TM) i7-13620 H @ 2.40 GHz CPU and an NVIDIA GeForce RTX 4060 Laptop GPU with 8 GB of VRAM. The deep learning framework utilized was PyTorch 2.0.1, with Python 3.9.7 serving as the programming language. Development was carried out using PyCharm, and CUDA 11.7 was employed to enable GPU acceleration. All algorithms involved in the experimental procedures were implemented and executed under this hardware and software configuration.
+During training, identical hyperparameters were used for all models to ensure fair comparisons. The detailed parameter settings are summarized in Table 2 .
+Table 2 Detailed training parameters for tomato early blight severity grading Parameter Numerical value epochs 300 batch 8 imgsz 640 × 640 optimizer SGD momentum 0.937 lr0 0.01 weight decay 0.0005
+Detailed training parameters for tomato early blight severity grading
+To evaluate the performance of YOLO-based models, several commonly adopted metrics are utilized, including Precision (P), Recall (R), mean Average Precision at an IoU threshold of 0.50 (mAP@50), and mean Average Precision averaged over IoU thresholds from 0.50 to 0.95 (mAP@50–95) [ 23 ]. In addition to these accuracy-related metrics, this study also incorporates model efficiency indicators, such as the number of parameters (Params), computational complexity measured in giga floating-point operations (GFLOPs), and frames per second (FPS) during inference. These metrics provide a comprehensive assessment of both detection performance and computational cost.
+The corresponding calculation formulas for the above metrics are presented below: 5 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:P=\frac{{N}_{TP}}{{N}_{TP}+{N}_{FP}}\times\:100\text{\%},$$\end{document} 6 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:R=\frac{{N}_{TP}}{{N}_{TP}+{N}_{FN}}\times\:100\text{\%},$$\end{document} 7 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:AP={\int\:}_{0}^{1}P\left(R\right)dR,$$\end{document} 8 \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:mAP=\frac{1}{n}\sum\:_{i=1}^{n}{P}_{A{P}_{i}},$$\end{document}
+In this study, \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{N}_{TP}$$\end{document} denotes the number of true positives, i.e., correctly predicted severity levels of early blight; \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{N}_{FP}$$\end{document} refers to the number of false positives, indicating incorrectly predicted severity levels; and \documentclass[12pt]{minimal}
+				\usepackage{amsmath}
+				\usepackage{wasysym} 
+				\usepackage{amsfonts} 
+				\usepackage{amssymb} 
+				\usepackage{amsbsy}
+				\usepackage{mathrsfs}
+				\usepackage{upgreek}
+				\setlength{\oddsidemargin}{-69pt}
+				\begin{document}$$\:{N}_{FN}$$\end{document} represents the number of false negatives, where diseased leaves were not detected. Average Precision ( AP ) is defined as the area under the Precision–Recall ( P-R ) curve, representing the model’s precision across different recall thresholds. The mean Average Precision ( mAP ) is the average of AP across all severity levels, reflecting the overall detection accuracy of the model. The total number of categories in this grading task is n = 6.
+An ablation study was conducted to evaluate the individual contributions of the proposed modules—ADown, iAFF, and Unified-IoU—to the overall grading performance for tomato early blight. The lightweight YOLOv11n model was adopted as the baseline for comparison.
+Table 3 Results of the ablation experiment. √ indicates that the corresponding module is used; × indicates that the module is not used. Here, mAP@50 refers to the mean average precision for all severity levels of tomato early blight at an IoU threshold of 50%. mAP@50–95 represents the average precision across all severity levels, calculated over multiple IoU thresholds ranging from 50–95% Experiment Adown iAFF UIoU P % R % mAP50% mAP50-95% GFLOPs Weight/MB 1 × × × 88.3 86.7 91.9 90.8 6.3 5.5 2 √ × × 88.5 89.1 93.1 92.4 5.1 4.5 3 × √ × 81.9 85.8 88.2 87.3 6.5 5.7 4 × × √ 85.8 83 88.7 87.8 6.3 5.5 5 √ √ × 89.9 90.8 93.8 93.1 5.5 4.7 6 √ × √ 88.6 88.1 92.7 92.1 5.1 4.5 7 × √ √ 81.2 84 87.4 86.6 6.5 5.7 8 √ √ √ 91.4 89.8 94.1 93.4 5.4 4.7
+Results of the ablation experiment. √ indicates that the corresponding module is used; × indicates that the module is not used. Here, mAP@50 refers to the mean average precision for all severity levels of tomato early blight at an IoU threshold of 50%. mAP@50–95 represents the average precision across all severity levels, calculated over multiple IoU thresholds ranging from 50–95%
+Table 3 illustrates that, in Experiment 2, replacing the standard Conv layers in the YOLOv11n model with the Adown module resulted in slight yet consistent gains: precision increased by 0.2%, recall by 2.4%, mAP@50 by 1.2%, and mAP@50–95 by 1.6%. Additionally, the computational load and model size were reduced by 18.68% and 18.18%, respectively. These benefits are mainly due to Adown’s heterogeneous multi-branch downsampling structure, which combines average and max pooling to better capture edge features without adding computational burden. This makes it particularly suitable for detecting small lesions in tomato leaves at early stages. Experiment 3 introduced the iAFF attention mechanism, which led to further improvements across all metrics. By merging local and global semantic cues, iAFF strengthens the feature fusion process, helping the network focus more effectively on diseased areas. This enhancement was especially noticeable in the classification of mild and moderate infections. In contrast, Experiment 4, which employed only the Unified-IoU loss function, did not outperform the baseline model. This suggests that the loss function alone, without structural enhancements, struggles to guide training effectively and may even cause instability due to unbalanced gradient signals. Experiment 5 combined Adown and iAFF, resulting in mAP@50 and mAP@50–95 scores of 93.8% and 93.1%. This outcome supports the idea that feature extraction and attention mechanisms can work in concert to significantly improve detection performance. In Experiments 6 and 7, the model incorporated Adown + Unified-IoU and iAFF + Unified-IoU, respectively. Both configurations showed better performance than single-module models, but neither exceeded that of Experiment 5. This implies that the collaboration between architectural design and loss functions requires a solid foundation of feature quality to be effective. Experiment 8, which combined all three components, delivered the strongest results. Precision and recall rose by 3.1%, mAP@50 improved by 2.2%, and mAP@50–95 by 2.6%. Meanwhile, the computational cost and parameter size dropped by 14.29% and 14.55%. These findings demonstrate that it is possible to strike a balance between accuracy, efficiency, and speed.
+On closer inspection, each module contributes in a distinct way. Adown improves edge detail retention during downsampling; iAFF enhances semantic integration and feature clarity; and Unified-IoU helps the model better distinguish high-quality predictions by adjusting bounding box scaling and confidence weighting during training.
+A normalized confusion matrix was used to compare the classification performance of the original YOLOv11n model with the improved YOLOv11-AIU. Figure 6 shows the confusion matrices for both models, with the horizontal axis representing ground truth labels and the vertical axis representing predicted labels. The color intensity indicates the level of classification accuracy, with darker colors representing higher accuracy.
+Fig. 6 Normalized confusion matrix of the improved YOLOv11-AIU model
+Normalized confusion matrix of the improved YOLOv11-AIU model
+As shown in Fig. 6 , the YOLOv11n model achieved a high recognition accuracy of 0.98 for healthy tomato leaves, indicating strong stability in distinguishing non-diseased samples. However, noticeable misclassification was observed in severity grading. Specifically, samples from Grades 1 (g1), 3 (g3), and 5 (g5) were frequently confused with adjacent categories, with particularly high misclassification between g5 and g9. Additionally, a relatively high proportion of background samples were misclassified as diseased, suggesting that the model’s boundary discrimination and fine-grained classification capabilities still require improvement. In contrast, the improved YOLOv11-AIU model achieved significantly better classification accuracy across most severity levels. The accuracy for Grade 1 increased from 0.77 to 0.85, for Grade 3 from 0.73 to 0.79, and for Grade 5 from 0.77 to 0.84. These results indicate that the proposed model enhanced its discriminative ability in identifying mild to moderate early blight lesions. Furthermore, the rate of false positives in the background class was reduced, leading to improved differentiation between diseased and non-diseased regions. The classification boundaries produced by YOLOv11-AIU are therefore more precise.
+To further quantify the performance differences, Table 4 presents a comparison of mAP values for each severity level before and after model improvement. Overall, the YOLOv11-AIU model achieved mAP@50 and mAP@50–95 values of 94.1% and 93.4%, respectively, compared to 91.9% and 90.8% for the original YOLOv11n model. Notably, the most significant improvement was observed in Grade 1 detection, where mAP@50 increased from 90.4 to 92.4%, and mAP@50–95 rose from 89.7 to 92.2%. Grades 3 and 5 also showed gains of approximately 5% points, indicating the model’s effectiveness in optimizing mid-range severity classification. Although there was a slight decrease in Grade 9 performance (mAP@50 dropped from 96.3 to 95.7%), the difference is minor and remains within a high-performance range.
+Table 4 Comparison of mAP values for each severity level before and after YOLOv11n model improvement Disease grade mAP50/% mAP50-95/% 11n 11n-AIU 11n 11n-AIU 0 99.5 99.5 99.1 99. 4 1 90.4 92.4 89.7 92.2 3 84.2 89.9 82.6 88.9 5 85.8 90.9 83.9 89.3 7 95.4 96.3 94.1 95.7 9 96.3 95.7 95.5 95.1 all 91.9 94.1 90.8 93.4
+Comparison of mAP values for each severity level before and after YOLOv11n model improvement
+To validate the effectiveness and superiority of the proposed Unified-IoU loss function in the task of tomato early blight severity detection, a comparative experiment was conducted against several widely used IoU-based loss functions, including Generalized-IoU (GIoU), Distance-IoU (DIoU), Efficient-IoU (EIoU), Scalable-IoU (SIoU), and Complete-IoU (CIoU). All experiments were performed using the same baseline architecture, YOLOv11n-Adown-iAFF, and were trained under identical hyperparameter settings to ensure a fair comparison.
+Table 5 Comparison of model performance using different loss functions Loss function P % R % mAP50/% mAP50-95/% CIoU 89.9 90.8 93.8 93.1 GIoU 84.9 85.5 90.4 89.6 DIoU 87.8 86.8 92.5 91.8 EIoU 85.9 85.5 90.3 89.3 SIoU 85.9 86.8 91.7 91 UIoU 91.4 89.8 94.1 93.4
+Comparison of model performance using different loss functions
+Table 5 presents the detection performance metrics corresponding to different loss functions. As shown, the UIoU loss function consistently outperforms the others across all evaluation metrics. Specifically, it achieves a precision of 91.4%, a recall of 89.8%, an mAP@50 of 94.1%, and an mAP@50–95 of 93.4%. In contrast, GIoU yields the lowest performance in all metrics, indicating weaker adaptability to the tomato early blight severity detection task.
+Fig. 7 Training loss curves of different loss functions
+Training loss curves of different loss functions
+To further illustrate the convergence behavior of different loss functions during training, Fig. 7 presents the dynamic trends of three core loss components—bounding box regression loss (box_loss) [ 24 ], classification loss (cls_loss) [ 25 ], and distribution focal loss (dfl_loss) [ 26 ]—across training epochs. As shown in the figure, UIoU exhibits a faster decline in the early stages of training and maintains a smoother and more stable convergence overall.
+In the box_loss curve, UIoU consistently remains at the lowest level among all compared loss functions, indicating superior bounding box regression capability. For cls_loss, the classification error continues to decrease steadily in the middle to later stages, reflecting stable learning of category distinctions. In contrast, the dfl_loss curve shows relatively minor differences among the loss functions, suggesting similar behavior in distributional localization refinement.
+To further evaluate the performance of various attention mechanisms in lightweight object detection networks, five modules—SE, CBAM, ECA, GAM, and iAFF—were introduced for comparative experiments. The results are illustrated in Fig. 8 .
+Fig. 8 Comparison results of different attention mechanisms
+Comparison results of different attention mechanisms
+As shown in Fig. 8 , the iAFF module achieved the best performance across all evaluation metrics, with mAP@50 and mAP@50–95 reaching 88.2% and 87.3%, respectively. In the task of early blight lesion detection in tomatoes, iAFF demonstrated superior localization precision and class discrimination. By integrating multi-scale feature fusion and parallel attention, iAFF more effectively enhances critical feature channels and spatial response regions, improving the recognition of lesion boundaries. Compared to the conventional SE module, iAFF improved mAP@50–95 by 4.7% points, and outperformed CBAM, ECA, and GAM by 3.8%, 1.2%, and 1.4%, respectively, indicating greater robustness and generalization capability.
+When considering computational complexity, iAFF introduced only 6.5 GFLOPs—slightly more than SE, CBAM, and ECA (each with 6.3 GFLOPs), but significantly less than GAM (7.6 GFLOPs)—demonstrating favorable lightweight characteristics and deployment adaptability. Although ECA offered a simpler architecture and achieved mAP@50 and mAP@50–95 of 87.2% and 86.1%, its overall performance remained slightly inferior to iAFF. While GAM achieved the highest recall rate, its lower precision indicates weaker discriminative ability between positive and negative samples, leading to higher false detection rates under varying lesion morphologies.
+In this section, the YOLOv11-AIU model is compared with several mainstream object detection models, including YOLOv3-tiny, YOLOv5n, YOLOv8n, YOLOv10n, SSD, and Faster R-CNN, to validate the effectiveness of YOLOv11n. The experimental results are presented in Table 6 .
+Table 6 Comparison of tomato early blight severity detection results using different YOLO models Model P /% R /% mAP50/% GFLOPs Weight /MB YOLOv3-tiny 89 89.4 91.5 14.3 19.2 YOLOv5n 73.5 87.4 85.1 5.8 4.6 YOLOv8n 83.9 84.2 88.9 6.8 5.6 YOLOv10n 85.6 85.2 90.2 8.2 5.8 SSD 88.9 87.6 92 6.3 5.4 Faster R-CNN 81.9 85.8 88.2 6.5 5.7 ViT 86.6 81.3 88.8 5.7 5.1 YOLOv11-AIU 91.4 89.8 94.1 5.4 4.7
+Comparison of tomato early blight severity detection results using different YOLO models
+As shown in Table 6 , the YOLOv11-AIU model achieved the highest performance across all key metrics, with a precision of 91.4%, recall of 89.8%, and mAP@50 of 94.1%. Furthermore, the dataset size used was only 5.4 GB, and the model’s memory footprint was just 4.7 MB. Compared with other mainstream models including YOLOv3-tiny, YOLOv5n, YOLOv8n, YOLOv10n, SSD, Faster R-CNN, and ViT, the YOLOv11-AIU model demonstrated consistent improvements in detection accuracy, recall, and average precision.Specifically, precision improved by 2.7, 24.4, 8.9, 6.8, 2.7, 10.4, and 4.8% points respectively over the above models; recall improved by 0.4, 2.7, 6.2, 4.9, 2.4, 4.5, and 8.5% points; and mAP@50 increased by 2.8, 10.6, 5.8, 4.3, 2.2, 6.3, and 5.3% points, respectively. At the same time, the computational cost was reduced by 62.2%, 6.9%, 20.6%, 34.1%, 14.3%, 17%, and 5.3%, respectively. In terms of model size, YOLOv11-AIU showed a slight increase compared to YOLOv5n, but exhibited reductions of 75.5%, 16%, 19%, 13%, 5.3%, and 7.8% compared to the other models.
+These results demonstrate that YOLOv11-AIU outperforms other models in tomato early blight severity grading, offering better accuracy, lighter architecture, and improved computational efficiency.
+To further investigate the model’s recognition mechanisms across different severity levels of tomato early blight, this study adopts the Grad-CAM visualization technique [ 27 ]. Grad-CAM is used to generate heatmaps that highlight the image regions most influential in the model’s classification decisions, thereby revealing the focus of the model’s attention.
+Using this technique, we conducted a comparative analysis of attention distributions between the original YOLOv11n and the improved YOLOv11-AIU model on the disease detection task. Figure 9 illustrates both the original leaf images and their corresponding Grad-CAM heatmaps across various severity levels, ranging from healthy leaves to Grade 9 infections. These visualizations provide intuitive insight into the attention mechanisms at different disease stages.
+It can be observed that the attention maps produced by the original YOLOv11n model are relatively scattered, particularly for moderate to severe infections (e.g., Grade 5 and above), where the attention tends to be distracted by background noise or irrelevant regions. The heatmaps show broader, less concentrated areas of activation, leading to deviations in attention focus and a potential decline in classification accuracy.In contrast, the YOLOv11-AIU model demonstrates significantly more focused attention across all severity levels. Notably, it maintains precise focus on lesion regions even in early and mild cases (e.g., Grades 1 and 3), indicating enhanced fine-grained feature recognition. Moreover, the improved model produces heatmaps with clearer boundaries and more concentrated color distributions, indicating stronger capability in identifying lesion contours, intensity, and spatial extent. For example, in the Grade 5 and Grade 7 samples, YOLOv11-AIU accurately identifies the primary lesion areas with high activation intensity and well-defined attention boundaries, confirming its superior stability and reliability in detecting moderate to severe infections.
+Fig. 9 Visualization of attention heatmaps generated by Grad-CAM for different severity levels of tomato early blight. The top row shows the original YOLOv11n model, and the bottom row shows the improved YOLOv11-AIU model. The color intensity reflects the model’s attention to lesion areas, with warmer colors indicating stronger activation
+Visualization of attention heatmaps generated by Grad-CAM for different severity levels of tomato early blight. The top row shows the original YOLOv11n model, and the bottom row shows the improved YOLOv11-AIU model. The color intensity reflects the model’s attention to lesion areas, with warmer colors indicating stronger activation
+By examining the progressive changes from healthy leaves to Grade 9 lesions, it can be concluded that both models are capable of localizing diseased regions; however, the improved model demonstrates significantly stronger attention to lesion areas. Compared to the original model, YOLOv11-AIU consistently exhibits more precise and concentrated attention, regardless of whether the lesions are mild or severe. The original YOLOv11n model tends to focus disproportionately on background regions, whereas this issue is substantially mitigated in the improved model. Moreover, the improved model shows a greater ability to suppress interference from irrelevant regions, further confirming the effectiveness of YOLOv11-AIU in accurately detecting and grading tomato early blight.
+To enable efficient execution of the tomato early blight recognition model on embedded devices, the trained YOLOv11-AIU model was deployed to the Luban Cat5 development board. In parallel, a graphical user interface (GUI) was developed based on the Qt5 framework to facilitate user interaction. The overall deployment workflow is illustrated in Fig. 10 .
+The deployment process began by converting the model weights, originally trained using the PyTorch framework, into the ONNX (Open Neural Network Exchange) format. Subsequently, the ONNX model was transformed into RKNN format using the RKNN Toolkit to ensure compatibility with the RK3588 chip on the Luban Cat5 platform. During this conversion, several optimization procedures were applied, including model quantization, graph optimization, and tensor reordering. These steps effectively reduced the model size and significantly improved inference efficiency, while preserving the model’s high prediction accuracy.
+Fig. 10 Workflow of the YOLOv11-AIU model deployment process
+Workflow of the YOLOv11-AIU model deployment process
+GUI was developed based on the Qt5 platform, featuring a clean and intuitive layout designed for ease of use in field applications. Core functionalities include user login management, tomato leaf image acquisition, module control options such as “Start Detection” and “Select Save Path”, real-time visualization of grading results, and image storage. The system leverages OpenCV for image capture and preprocessing, and integrates the RKNN API for model inference, thereby enabling seamless interaction between image input and detection output.
+During operation, the GUI concurrently displays both the input image and the predicted severity grade, offering users immediate visual feedback. The system also supports image saving, enhancing usability and improving operational stability under real-world agricultural conditions. A schematic representation of the interface during runtime is shown in Fig. 11 .
+Fig. 11 Interface of the tomato early blight severity detection system
+Interface of the tomato early blight severity detection system
+To evaluate the effectiveness of the model deployment, detection performance tests were conducted for the YOLOv11-AIU model and compared with the baseline YOLOv11n model on the embedded device. Figure 12 presents the detection results of both models under the same input image conditions. It can be observed that even after lightweight optimization, the YOLOv11-AIU model maintains high recognition accuracy while achieving faster detection speed and producing clearer and more stable output results.
+Fig. 12 Comparison of detection results between different models on the same input image
+Comparison of detection results between different models on the same input image
+As shown in Table 7 , the YOLOv11-AIU model achieves a significant improvement in inference speed on the embedded platform, with the frame rate increasing from 7.33 FPS to 17.41 FPS compared to the original YOLOv11n model. This represents a performance gain of approximately 140%, significantly enhancing the model’s real-time inference capability under resource-constrained conditions.
+Table 7 Comparison of frame rates before and after model improvement Model FPS Improvement rate/% YOLOv11n 6.25 140 YOLOv11-AIU 15.67
+Comparison of frame rates before and after model improvement
+The performance improvement observed in the YOLOv11-AIU model can be largely attributed to the structural optimization of key feature representation modules. The ADown module introduces a multi-branch downsampling strategy, which effectively preserves fine-grained lesion details—particularly for small-scale or early-stage infections—while maintaining a lightweight architecture. This design significantly enhances the model’s ability to detect mild to moderate severity levels with greater accuracy. The C3k2_iAFF module further improves spatial-semantic representation by integrating local attention mechanisms with global contextual modeling through an iterative fusion process. This dual-branch architecture not only strengthens feature discrimination but also mitigates the influence of background noise, which is particularly critical in complex field conditions. Additionally, the incorporation of the Unified-IoU loss function introduces a dynamic box scaling mechanism and confidence-guided weighting, thereby improving bounding box localization—especially in scenarios involving blurred boundaries or subtle severity transitions between lesion categories.
+Despite these advancements, YOLOv11-AIU still encounters limitations under extreme conditions, such as dense lesion overlap, occlusions, or non-uniform lighting environments. These challenges highlight the need for further enhancements in model robustness and generalization capability. Future research directions may include the integration of temporal information from video sequences to model disease progression, the adoption of Transformer-based architectures for capturing long-range dependencies, and the exploration of multimodal data fusion, such as combining RGB images with hyperspectral imagery or environmental sensor data, to enhance the model’s adaptability to real-world agricultural scenarios.
+This study presents YOLOv11-AIU, a lightweight and efficient model specifically designed for the severity grading of tomato early blight, achieving a strong balance between accuracy and real-time performance. The model achieved mAP@50 and mAP@50–95 scores of 94.1% and 93.4%, respectively. Compared with the baseline YOLOv11n, YOLOv11-AIU achieved a 3.1% increase in both precision and recall, while reducing computational complexity and model size by 14.29% and 14.55%, respectively. These improvements underscore the model’s ability to deliver high detection performance while maintaining computational efficiency, making it well-suited for deployment in resource-constrained agricultural environments. Furthermore, when deployed on the Luban Cat5 embedded platform, the model’s inference speed increased from 6.25 FPS to 15.67 FPS, representing a 140% improvement. This substantial gain in processing speed demonstrates the model’s practical applicability for real-time, edge-based plant disease monitoring, and its potential for broader implementation in intelligent agricultural systems.
+Publisher’s note
+Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.
+Conceptualization, X.T.; methodology, Z.S. and Z.L.; software, Q.C. and Z.L.; validation, Z.S.; formal analysis, Z.L.; investigation, X.T.; resources, Y.Z.; data curation, X.T.; writing—original draft preparation, Z.L. and P.W.; writing—review and editing, X.T. and Z.S.; visualization, Z.S.; supervision, X.T. and Q.C.; project administration, L.Y. and Q.C.; funding acquisition, L.Y. and Q.C. All authors have read and agreed to the published version of the manuscript.
+This work has been supported by the China Central Fund for Guiding Development of Local Science and Technology under Grant No.202407AB110010, in part by the Yunnan Science and Technology Major Project under Grant No.202302AE090020, in part by Yunnan Science and Technology Major Project under Grant No.202303AP140014.
+No datasets were generated or analysed during the current study.
+Not applicable.
+Not applicable.
+The authors declare no competing interests.

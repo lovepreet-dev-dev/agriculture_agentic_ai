@@ -1,0 +1,15 @@
+TITLE: Corrigendum: Oxytetracycline and streptomycin resistance genes inXanthomonas arboricolapv.pruni, the causal agent of bacterial spot in peach
+URL: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11955592/
+
+Edited and reviewed by: Jesús Navas-Castillo, IHSM La Mayora, CSIC, Spain
+In the published article, there was an error in Table 1 , page 4 as published.
+In Table 1 , the primer sequences for tetC-F and tetC-R are incorrect. They should instead be as so: tetC-F 5- CTTGAGAGCCTTCAACCCAG-3 and tetC-R should be 5- ATGGTCGTCATCTACCTGCC-3.
+The corrected [ Table 1 ] and its caption appear below.
+Bacterial strains, plasmids, and primers used in This study.
+In the published article, there was an error in the Acknowledgement section, page 11 . The acknowledgement statement containing the NIH grant ID for the Secretariat High Performance computing cluster was incorrectly displayed as “P20GM139767”. The correct NIH grant ID is “P20GM139769”.
+This sentence previously stated:
+“ We acknowledge Milan Panth for highly skillful technical assistance, Gary Vallad for providing us the GEV1001 strain and Clemson University for providing the Palmetto Cluster and the Secretariat High Performance computing cluster (supported by NIH grant P20GM139767) for our genome sequence analysis.”
+The corrected sentence appears below:
+“ We acknowledge Milan Panth for highly skillful technical assistance, Gary Vallad for providing us the GEV1001 strain and Clemson University for providing the Palmetto Cluster and the Secretariat High Performance computing cluster (supported by NIH grant P20GM139769) for our genome sequence analysis.”
+The authors apologize for these errorrs and state that this does not change the scientific conclusions of the article in any way. The original article has been updated.
+All claims expressed in this article are solely those of the authors and do not necessarily represent those of their affiliated organizations, or those of the publisher, the editors and the reviewers. Any product that may be evaluated in this article, or claim that may be made by its manufacturer, is not guaranteed or endorsed by the publisher.
