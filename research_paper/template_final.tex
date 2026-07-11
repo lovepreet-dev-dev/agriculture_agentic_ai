@@ -42,7 +42,7 @@ Jalandhar, Punjab, India \\
 \maketitle
 
 \begin{abstract}
-Automated plant disease detection using convolutional neural networks has achieved strong classification accuracy on benchmark datasets such as PlantVillage, yet a standalone classifier provides only a label and a confidence score: it offers no explanation, no differential reasoning over plausible alternatives, and no mechanism to defer uncertain cases to a human expert. This paper presents an agentic artificial intelligence framework that wraps a ResNet-18 vision classifier with four cooperating agents -- a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator -- to convert disease classification into an autonomous, explainable, and safety-aware diagnostic advisory system. The Orchestrator conditions expensive retrieval and reasoning computation on prediction confidence and class ambiguity, invoking a full retrieval-augmented reasoning pipeline only for uncertain cases and escalating low-confidence, low-quality inputs directly to human review rather than acting on them. We evaluate the system on the PlantVillage dataset using both conventional classification metrics and a set of agentic metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- that quantify the safety-utility trade-off of autonomous deferral relative to a naive always-trust-the-classifier baseline. On the held-out test split, the system attains a top-1 classification accuracy of XX.X\% and reduces the harmful-action rate from a naive baseline of XX.X\% to XX.X\%, at a human-intervention rate of XX.X\%. These results support agent-orchestrated pipelines as a practical bridge between high-accuracy vision models and trustworthy, deployable agricultural decision support.
+Automated plant disease detection using convolutional neural networks has achieved strong classification accuracy on benchmark datasets such as PlantVillage, yet a standalone classifier provides only a label and a confidence score: it offers no explanation, no differential reasoning over plausible alternatives, and no mechanism to defer uncertain cases to a human expert. This paper presents an agentic artificial intelligence framework that wraps a ResNet-18 vision classifier with four cooperating agents -- a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator -- to convert disease classification into an autonomous, explainable, and safety-aware diagnostic advisory system. The Orchestrator conditions expensive retrieval and reasoning computation on prediction confidence and class ambiguity, invoking a full retrieval-augmented reasoning pipeline only for uncertain cases and escalating low-confidence, low-quality inputs directly to human review rather than acting on them. We evaluate the system on the PlantVillage dataset using both conventional classification metrics and a set of agentic metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- that quantify the safety-utility trade-off of autonomous deferral relative to a naive always-trust-the-classifier baseline. On a held-out test set of 114 images spanning all 38 classes, a single ResNet-18 classifier attains a top-1 accuracy of 86.0\%, and the agentic layer reduces the harmful-action rate from a naive always-act baseline of 14.0\% to 3.5\%, at a human-intervention rate of 17.5\%. Replacing the single backbone with a three-model federated ensemble (FedAvg, FedOpt, FedMA) further raises classification accuracy on this in-distribution split and supplies an inter-model agreement signal to the Orchestrator. These results support agent-orchestrated pipelines as a practical bridge between high-accuracy vision models and trustworthy, deployable agricultural decision support.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -144,10 +144,10 @@ The system is composed of five cooperating components: a Vision Agent, a Confide
 \end{figure}
 
 \subsection{Vision Agent}
-The Vision Agent is a ResNet-18 convolutional network \cite{r_he2016} that maps an input leaf image to a probability distribution over the PlantVillage disease taxonomy. The backbone is reused from our prior federated learning study on plant disease classification, in which it was trained using FedAvg across simulated clients under a non-IID partition of the training data. In the present system it is used purely as a perception module: it emits a softmax vector, from which the predicted label and full class-probability distribution are passed to the next agent.
+The Vision Agent maps an input leaf image to a probability distribution over the PlantVillage disease taxonomy using one or more ResNet-18 convolutional networks \cite{r_he2016}. The backbones are reused from our prior federated learning study on plant disease classification, in which they were trained across simulated clients under a non-IID partition of the training data. The system supports two configurations: a single ResNet-18, and an ensemble of three ResNet-18 checkpoints produced by distinct federated aggregation strategies -- Federated Averaging (FedAvg), Federated Optimization (FedOpt), and Federated Matched Averaging (FedMA) -- whose softmax distributions are averaged. The ensemble additionally yields an \emph{agreement ratio}: the fraction of member models whose individual top-1 prediction matches the averaged ensemble label. This serves as a model-based uncertainty signal complementary to the softmax confidence, since independently trained models can diverge on a hard case even when the averaged confidence is high. In the present system the Vision Agent is used purely as a perception module: it emits the predicted label, the full class-probability distribution, and -- in ensemble mode -- the agreement ratio, all of which are passed to the next agent.
 
 \subsection{Confidence and Image-Quality Agent}
-This agent performs lightweight, non-parametric post-processing on the Vision Agent's output and on the input image itself, producing a structured reliability signal rather than a new prediction. Three quantities are computed: (i) \emph{confidence}, the top-1 softmax probability; (ii) \emph{margin}, the gap between the top-1 and top-2 class probabilities, which captures ambiguity between visually similar diseases that raw confidence alone can miss; and (iii) a binary \emph{quality flag}, derived from a Laplacian-variance blur check and a brightness-range check on the input image, to catch cases where the image itself -- rather than the disease -- is the source of uncertainty. These three signals are passed to the Orchestrator as a single structured object.
+This agent performs lightweight, non-parametric post-processing on the Vision Agent's output and on the input image itself, producing a structured reliability signal rather than a new prediction. Up to four quantities are computed: (i) \emph{confidence}, the top-1 softmax probability; (ii) \emph{margin}, the gap between the top-1 and top-2 class probabilities, which captures ambiguity between visually similar diseases that raw confidence alone can miss; (iii) a binary \emph{quality flag}, derived from a Laplacian-variance blur check and a brightness-range check on the input image, to catch cases where the image itself -- rather than the disease -- is the source of uncertainty; and (iv) when the Vision Agent runs as an ensemble, the \emph{agreement ratio} propagated from it, which flags cases where independently trained models disagree even if the averaged confidence is high. These signals are passed to the Orchestrator as a single structured object.
 
 \subsection{Retrieval Agent}
 The Retrieval Agent implements retrieval-augmented generation over a static knowledge base curated from publicly available agricultural extension and plant-pathology reference material, covering the crops and diseases represented in the PlantVillage taxonomy. Each reference document is embedded and indexed for dense semantic retrieval. Given a predicted disease label (and, when the margin is low, its runner-up candidate), the Retrieval Agent returns the top-$k$ most relevant passages, which serve as grounding evidence for the Reasoning Agent. This agent is invoked only when the Orchestrator determines that a case warrants full reasoning, rather than on every prediction.
@@ -156,7 +156,7 @@ The Retrieval Agent implements retrieval-augmented generation over a static know
 The Reasoning Agent is a large language model prompted with the predicted label, its confidence and margin, and the passages returned by the Retrieval Agent. It produces three outputs: (i) a diagnosis statement identifying the most likely disease and, when margin is low, up to two plausible alternatives; (ii) an explanation that is required to cite which retrieved passage supports each factual claim, so that the output can be checked for grounding rather than accepted as an unverifiable model assertion; and (iii) a treatment and prevention recommendation drawn from the retrieved evidence rather than generated from unverified parametric knowledge.
 
 \subsection{Orchestrator}
-The Orchestrator is the component that makes the system agentic rather than a fixed pipeline: it decides, per case, which of the other agents to invoke. Its policy is summarized in Table~\ref{tab:policy}. High-confidence, high-margin, good-quality cases bypass retrieval and reasoning entirely and are answered directly from a lookup, minimizing latency and inference cost. Moderate-confidence or low-margin cases trigger the full retrieval-and-reasoning pipeline. Low-confidence or low-quality cases are escalated directly to human review without any automated treatment recommendation being issued, since an automated system should not offer possibly harmful advice under conditions where it cannot support that advice.
+The Orchestrator is the component that makes the system agentic rather than a fixed pipeline: it decides, per case, which of the other agents to invoke. Its policy is summarized in Table~\ref{tab:policy}. High-confidence, high-margin, good-quality cases bypass retrieval and reasoning entirely and are answered directly from a lookup, minimizing latency and inference cost. Moderate-confidence or low-margin cases trigger the full retrieval-and-reasoning pipeline. Low-confidence or low-quality cases are escalated directly to human review without any automated treatment recommendation being issued, since an automated system should not offer possibly harmful advice under conditions where it cannot support that advice. In ensemble mode, heavy disagreement among the member models (agreement ratio below a threshold) is treated as an additional escalation trigger, since divergence between independently trained models is itself evidence that the case is unreliable, even when the averaged softmax confidence is high.
 
 \begin{table}[t]
 \centering
@@ -167,9 +167,9 @@ The Orchestrator is the component that makes the system agentic rather than a fi
 \toprule
 \textbf{Condition} & \textbf{Action} \\
 \midrule
-High confidence, high margin, good image quality & Direct lookup-based recommendation; retrieval and reasoning skipped \\
+High confidence, high margin, model agreement, good image quality & Direct lookup-based recommendation; retrieval and reasoning skipped \\
 Moderate confidence, or low margin, good image quality & Full pipeline: retrieval $\rightarrow$ reasoning $\rightarrow$ grounded recommendation with caveats \\
-Low confidence, or poor image quality & Escalate to human expert; no automated recommendation issued \\
+Low confidence, poor image quality, or heavy model disagreement & Escalate to human expert; no automated recommendation issued \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -180,17 +180,17 @@ Algorithm~\ref{alg:orch} formalizes this routing logic.
 \caption{Orchestrator Routing Policy}
 \label{alg:orch}
 \begin{algorithmic}[1]
-\REQUIRE image $x$; thresholds $\tau_{high}=0.85$, $\tau_{low}=0.55$, $\tau_{margin}=0.15$
-\STATE $\hat{y}, p \leftarrow \text{VisionAgent}(x)$ \COMMENT{predicted label, softmax vector}
+\REQUIRE image $x$; thresholds $\tau_{high}=0.85$, $\tau_{low}=0.55$, $\tau_{margin}=0.15$, $\tau_{agree}=0.5$
+\STATE $\hat{y}, p, a \leftarrow \text{VisionAgent}(x)$ \COMMENT{label, softmax vector, agreement ratio}
 \STATE $c \leftarrow \max(p)$; \ $m \leftarrow p_{(1)} - p_{(2)}$ \COMMENT{confidence, margin}
 \STATE $q \leftarrow \text{QualityCheck}(x)$ \COMMENT{blur / brightness check}
-\IF{$c \geq \tau_{high}$ \AND $m \geq \tau_{margin}$ \AND $q = \text{good}$}
+\IF{$c \geq \tau_{high}$ \AND $m \geq \tau_{margin}$ \AND $a \geq \tau_{agree}$ \AND $q = \text{good}$}
     \STATE \textbf{return} DirectLookup($\hat{y}$) \COMMENT{skip retrieval \& reasoning}
-\ELSIF{$c \geq \tau_{low}$ \AND $q = \text{good}$}
+\ELSIF{$c \geq \tau_{low}$ \AND $a \geq \tau_{agree}$ \AND $q = \text{good}$}
     \STATE $D \leftarrow \text{RetrievalAgent}(\hat{y})$
     \STATE \textbf{return} ReasoningAgent($\hat{y}, c, m, D$)
 \ELSE
-    \STATE \textbf{return} EscalateToHuman($x, \hat{y}, c, q$)
+    \STATE \textbf{return} EscalateToHuman($x, \hat{y}, c, q, a$)
 \ENDIF
 \end{algorithmic}
 \end{algorithm}
@@ -203,22 +203,22 @@ An episodic Memory Agent that logs each diagnosis and a Follow-up Agent that req
 
 \textbf{Dataset.} We use the PlantVillage dataset \cite{r_hughes2015}, comprising leaf images spanning multiple crop species and disease categories, split into training, validation, and held-out test partitions consistent with our prior federated learning experiments on this dataset.
 
-\textbf{Vision backbone.} ResNet-18 \cite{r_he2016}, trained with SGD, is reused unmodified from prior work; no retraining was performed for this study, isolating the evaluation to the contribution of the agentic layer.
+\textbf{Vision backbone.} ResNet-18 \cite{r_he2016} is reused unmodified from prior work; no retraining was performed for this study, isolating the evaluation to the contribution of the agentic layer. We evaluate two Vision Agent configurations: a single FedAvg-trained checkpoint, and a three-model ensemble that combines checkpoints trained with FedAvg, FedOpt, and FedMA aggregation by averaging their softmax outputs. All three checkpoints share the same 38-class ResNet-18 architecture and differ only in their federated aggregation strategy.
 
-\textbf{Orchestrator thresholds.} The high-confidence, low-confidence, and margin thresholds are configured at 0.85, 0.55, and 0.15 respectively, selected to bias the system toward caution: cases are escalated rather than acted upon whenever confidence or margin falls outside a conservative operating range.
+\textbf{Orchestrator thresholds.} The high-confidence, low-confidence, and margin thresholds are configured at 0.85, 0.55, and 0.15 respectively; in ensemble mode, an agreement-ratio threshold of 0.5 additionally escalates cases on which the member models substantially disagree. The thresholds are selected to bias the system toward caution: cases are escalated rather than acted upon whenever confidence, margin, or inter-model agreement falls outside a conservative operating range.
 
-\textbf{Retrieval index.} Reference documents are embedded with a sentence-level embedding model and indexed for cosine-similarity retrieval; the Retrieval Agent returns the top-$k$ passages per query.
+\textbf{Retrieval index.} Reference documents are chunked and embedded with the \texttt{bge-small-en-v1.5} sentence-embedding model and indexed in a FAISS vector store for cosine-similarity retrieval; the Retrieval Agent returns the top-$k$ ($k=5$) passages per query.
 
-\textbf{Reasoning model.} The Reasoning Agent is implemented with an instruction-tuned large language model, prompted with a fixed template requiring passage-grounded citation for every factual claim in its output.
+\textbf{Reasoning model.} The Reasoning Agent is implemented with an instruction-tuned large language model accessed through an OpenAI-compatible API via a provider-agnostic wrapper, so that the model can be swapped without changing the rest of the system. It is prompted with a fixed template requiring passage-grounded citation for every factual claim in its output and instructed to decline to recommend a treatment that the retrieved evidence does not support.
 
-\textbf{Knowledge base.} The static reference corpus underlying the Retrieval Agent comprises approximately 150--200 curated documents drawn from agricultural extension services and plant-pathology reference material, covering symptoms, causal pathogens, and management practices for the crop-disease categories present in the PlantVillage taxonomy. Each document is chunked and embedded independently, allowing the Retrieval Agent to return passage-level rather than document-level evidence to the Reasoning Agent.
+\textbf{Knowledge base.} The static reference corpus underlying the Retrieval Agent comprises 125 curated documents drawn from open-access PubMed Central articles and agricultural extension / plant-pathology reference material, covering symptoms, causal pathogens, and management practices for the crop-disease categories present in the PlantVillage taxonomy. Chunking and embedding each document independently yields 16{,}706 indexed passage chunks, allowing the Retrieval Agent to return passage-level rather than document-level evidence to the Reasoning Agent.
 
 \textbf{Episodic logging.} Every case processed by the Orchestrator, together with its routing decision and downstream output, is logged in a structured record. This log is used for offline evaluation (Section~\ref{sec:exp}) and, as discussed in Section~\ref{sec:conclusion}, forms the basis on which a full episodic Memory Agent could be built in future work.
 
 \section{Experimental Setup}
 \label{sec:exp}
 
-We evaluate the system on the held-out PlantVillage test split using two families of metrics.
+We evaluate the system on a held-out PlantVillage test set of 114 images (three per class across all 38 crop-disease categories), reporting results for both the single-model and the three-model ensemble Vision Agent configurations, using two families of metrics.
 
 \textbf{Classification metrics.} Top-1 accuracy and macro-averaged F1 score of the Vision Agent in isolation, to establish the baseline perceptual performance the agentic layer builds upon.
 
@@ -230,37 +230,47 @@ We evaluate the system on the held-out PlantVillage test split using two familie
 \end{align}
 where $\hat{y}$ is the predicted label, $y$ is the ground-truth label, and $N$ is the number of test cases. We additionally report the \emph{naive baseline harmful-action rate}, defined as the classifier's raw error rate under a policy that always acts regardless of confidence -- equivalent to deploying the Vision Agent alone without any orchestration. The reduction from this baseline to the agentic harmful-action rate is the primary indicator of the value added by the Confidence/Quality Agent and Orchestrator.
 
-\textbf{Grounding check.} On a random sample of reasoning outputs from cases routed through the full pipeline, we manually verify whether each cited factual claim is in fact supported by the retrieved passage it references, reporting the fraction of outputs that are fully grounded.
+\textbf{Grounding check.} On the reasoning outputs from cases routed through the full pipeline, we qualitatively inspect whether cited factual claims are supported by the retrieved passages they reference and whether the agent declines to recommend treatments that the evidence does not contain. A formal, large-scale grounding annotation with inter-annotator agreement is left to future work.
+
+\textbf{Retrieval coverage.} We additionally measure retrieval coverage as the fraction of the 38 classes for which the knowledge base returns at least one strongly relevant passage (cosine similarity $\geq 0.75$) when queried by class name.
 
 \section{Results and Discussion}
 \label{sec:results}
 
-Table~\ref{tab:results} reports classifier and agentic-pipeline performance on the PlantVillage test split.
+Table~\ref{tab:results} reports classifier and agentic-pipeline performance on the PlantVillage test set for both Vision Agent configurations.
 
 \begin{table}[t]
 \centering
-\caption{Classification and Agentic Pipeline Results}
+\caption{Classification and Agentic Pipeline Results (114-image test set). Starred ensemble values are optimistic; see Section~\ref{sec:results} Limitations.}
 \label{tab:results}
 \small
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Metric} & \textbf{Value} \\
+\textbf{Metric} & \textbf{Single} & \textbf{3-Model} \\
+ & \textbf{ResNet-18} & \textbf{Ensemble} \\
 \midrule
-Vision Agent top-1 accuracy & XX.X\% \\
-Vision Agent macro-F1 & XX.X\% \\
-Correct-action rate (agentic) & XX.X\% \\
-Harmful-action rate (agentic) & XX.X\% \\
-Naive baseline harmful-action rate & XX.X\% \\
-Human-intervention rate & XX.X\% \\
-Retrieval-groundedness (manual, $n=$XX) & XX.X\% \\
+Top-1 accuracy & 86.0\% & 100.0\%$^{*}$ \\
+Macro-F1 & 82.8\% & 100.0\%$^{*}$ \\
+Correct-action rate & 87.7\% & 97.4\% \\
+Harmful-action rate & 3.5\% & 0.0\% \\
+Naive baseline harmful-action rate & 14.0\% & 0.0\%$^{*}$ \\
+Human-intervention rate & 17.5\% & 2.6\% \\
+Direct-diagnosis rate & 65.8\% & 74.6\% \\
+Full-pipeline (retrieve+reason) rate & 16.7\% & 22.8\% \\
+Member-model disagreements & --\,($N{=}1$) & 21/114 \\
+Retrieval coverage (of 38 classes) & 100\% & 100\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The Vision Agent alone achieves a top-1 accuracy of XX.X\% and a macro-F1 of XX.X\%, consistent with prior CNN-based results on this benchmark. Under the naive baseline policy, in which every prediction is acted upon regardless of confidence, the harmful-action rate is XX.X\%: in that fraction of cases the system would recommend a treatment despite an incorrect diagnosis. The full agentic pipeline reduces this to XX.X\%, at a human-intervention rate of XX.X\%, confirming the intended safety-coverage trade-off described in Section~\ref{sec:arch}: a modest fraction of cases deferred to a human in exchange for a substantial reduction in autonomously issued incorrect advice. Manual inspection of $n=$XX reasoning outputs found XX.X\% fully grounded in their cited retrieved passages, indicating [the degree of] reliability of the Reasoning Agent's explanations. Because the Orchestrator invokes the Retrieval and Reasoning Agents only for the subset of cases that are not resolved by the direct-lookup path, the full pipeline also incurs substantially lower average inference cost than a fixed design that always invokes retrieval and reasoning, though a full latency comparison is left for future work.
+\textbf{Safety-coverage trade-off (single model).} With the single ResNet-18 backbone, the Vision Agent achieves a top-1 accuracy of 86.0\% and a macro-F1 of 82.8\%. Under the naive baseline policy, in which every prediction is acted upon regardless of confidence, the harmful-action rate is 14.0\%: in that fraction of cases the system would recommend a treatment despite an incorrect diagnosis. The full agentic pipeline reduces this to 3.5\% -- roughly a four-fold reduction -- at a human-intervention rate of 17.5\%. This confirms the intended safety-coverage trade-off described in Section~\ref{sec:arch}: a modest fraction of cases deferred to a human in exchange for a substantial reduction in autonomously issued incorrect advice.
+
+\textbf{Effect of ensembling.} Replacing the single backbone with the three-model federated ensemble raises top-1 accuracy to 100\% on this test set and lifts the correct-action rate to 97.4\% while lowering the human-intervention rate to 2.6\%. The ensemble corrects several classes that the single model misclassified outright, and its members disagreed on 21 of the 114 images; this disagreement feeds the Orchestrator's escalation signal even where the averaged confidence is high. As noted below, however, the near-perfect accuracy in this configuration also saturates the safety comparison and should be read with caution.
+
+\textbf{Grounding and coverage.} Retrieval coverage is complete: all 38 classes return strongly relevant passages from the knowledge base. Qualitative inspection of the full-pipeline reasoning outputs found that they cite specific retrieved passages for their factual claims and, when the retrieved evidence described symptoms but lacked management guidance, the Reasoning Agent declined to fabricate a treatment and instead recommended expert consultation -- the intended hallucination-averse behavior. Because the Orchestrator invokes the Retrieval and Reasoning Agents only for the subset of cases not resolved by the direct-lookup path, the full pipeline also incurs substantially lower average inference cost than a fixed design that always invokes retrieval and reasoning, though a full latency comparison is left for future work.
 
 \subsection{Limitations}
-Three limitations qualify the conclusions of this study. First, PlantVillage images are captured under controlled, largely uniform backgrounds, a well-documented gap relative to field-captured smartphone images with cluttered backgrounds and variable lighting; the Confidence and Image-Quality Agent partially mitigates this at inference time but was not evaluated on out-of-distribution field imagery. Second, the static knowledge base covers the disease categories represented in PlantVillage but is not exhaustive of regional cultivars, co-occurring stress factors, or emerging pathogens, so the Retrieval Agent's grounding is only as complete as its underlying corpus. Third, the Orchestrator's confidence and margin thresholds were set conservatively by design rather than tuned against a validation objective; a learned or calibrated routing policy, noted in Section~\ref{sec:conclusion}, may achieve a more favorable safety-cost trade-off than the fixed thresholds used here.
+Four limitations qualify the conclusions of this study. First, and most importantly, the reported accuracies -- particularly the 100\% attained by the ensemble -- reflect in-distribution recognition rather than field generalization. The test images are drawn from the same PlantVillage distribution used to train the classifiers, so a degree of train--test overlap is likely, and the ensemble figures marked with an asterisk in Table~\ref{tab:results} should be read as an upper bound rather than an expected deployment accuracy. A direct consequence is that the ensemble's naive-baseline harmful-action rate collapses to 0\%, which \emph{saturates} the safety comparison; the informative safety result is therefore the single-model configuration (14.0\% $\rightarrow$ 3.5\%), where the classifier makes genuine errors for the agentic layer to catch. A rigorous assessment would use out-of-distribution test data -- for example field-captured smartphone images or a distinct dataset such as PlantDoc -- and a larger, class-balanced test set than the three-images-per-class used here. Second, PlantVillage images are captured under controlled, largely uniform backgrounds, a well-documented gap relative to field-captured images with cluttered backgrounds and variable lighting; the Confidence and Image-Quality Agent partially mitigates this at inference time but was not evaluated on out-of-distribution field imagery. Third, the static knowledge base covers the disease categories represented in PlantVillage but is not exhaustive of regional cultivars, co-occurring stress factors, or emerging pathogens, so the Retrieval Agent's grounding is only as complete as its underlying corpus. Fourth, the Orchestrator's confidence, margin, and agreement thresholds were set conservatively by design rather than tuned against a validation objective; a learned or calibrated routing policy, noted in Section~\ref{sec:conclusion}, may achieve a more favorable safety-cost trade-off than the fixed thresholds used here.
 
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
