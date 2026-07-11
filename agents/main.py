@@ -78,6 +78,31 @@ def create_synthetic_test_set(
     return test_set
 
 
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+
+def scan_test_images(
+    test_dir: Path, class_names: list[str]
+) -> list[tuple[str, Path, str]]:
+    """Scan TEST_IMAGE_DIR/<class>/*.img into (image_id, path, true_label).
+
+    The subfolder name is the ground-truth label and must match a class in
+    class_names.json exactly. Classes with no images are simply skipped.
+    """
+    test_dir = Path(test_dir)
+    class_set = set(class_names)
+    samples: list[tuple[str, Path, str]] = []
+    if not test_dir.exists():
+        return samples
+    for cls_dir in sorted(test_dir.iterdir()):
+        if not cls_dir.is_dir() or cls_dir.name not in class_set:
+            continue
+        for p in sorted(cls_dir.iterdir()):
+            if p.suffix.lower() in IMAGE_EXTS:
+                samples.append((f"{cls_dir.name}/{p.name}", p, cls_dir.name))
+    return samples
+
+
 def print_section(title: str, width: int = 70) -> None:
     print(f"\n{'='*width}")
     print(f"  {title}")
@@ -107,27 +132,48 @@ def main():
         help="Wire real RAG retrieval + reasoning into the moderate tier. "
              "'auto' enables it when the FAISS index exists."
     )
+    parser.add_argument(
+        "--test-image-dir", type=str, default=config.TEST_IMAGE_DIR,
+        help="Directory of real test images (per-class subfolders). Used in "
+             "ensemble mode. Defaults to TEST_IMAGE_DIR from .env."
+    )
     args = parser.parse_args()
 
     class_names = _load_class_names()
+
+    # Decide whether we run on REAL images (ensemble mode + images present).
+    real_samples: list[tuple] = []
+    if args.mode == "ensemble" and args.test_image_dir:
+        real_samples = scan_test_images(Path(args.test_image_dir), class_names)
+    use_real_images = args.mode == "ensemble" and len(real_samples) > 0
+
     print_section("AGENTIC PLANT DISEASE DIAGNOSIS")
-    print(f"Mode: {args.mode}")
+    print(f"Mode: {args.mode}" + ("  (real images)" if use_real_images else ""))
     print(f"Classes: {len(class_names)}")
     print(f"Healthy classes: {sum(1 for c in class_names if c.endswith('___healthy'))}")
 
     # ── Step 1: Create vision agent ──────────────────────────────────────
     print_section("STEP 1: Vision Agent")
+    if args.mode == "ensemble" and not use_real_images:
+        print(f"  Ensemble mode requested but no images found in "
+              f"'{args.test_image_dir}'.")
+        print(f"  Falling back to MockVisionAgent so the run still produces a "
+              f"report. Add images to the per-class subfolders to evaluate the "
+              f"real checkpoint.")
+        args.mode = "mock"
+
     if args.mode == "ensemble":
         checkpoint_paths = [
             PROJECT_ROOT / "model" / "fedma_global_model_plantvillage.pth",
-            # Append more paths here for N>1:
-            # PROJECT_ROOT / "model" / "fedopt_plantvillage.pth",
+            PROJECT_ROOT / "model" / "fedopt_plantvillage.pth",
+            PROJECT_ROOT / "model" / "fedavg_round10.pt",
         ]
         vision_agent = create_vision_agent(
             mode="ensemble",
             checkpoint_paths=checkpoint_paths,
         )
         print(f"Loaded {len(checkpoint_paths)} model(s)")
+        print(f"Real test images: {len(real_samples)}")
     else:
         vision_agent = create_vision_agent(mode="mock", seed=args.seed)
         print("MockVisionAgent created (synthetic probability distributions)")
@@ -182,40 +228,60 @@ def main():
     print(f"  MARGIN threshold: >= {orchestrator.MARGIN_THRESHOLD}")
     print(f"  DISAGREEMENT:     <  {orchestrator.AGREEMENT_DISAGREEMENT}")
 
-    # ── Step 3: Create synthetic test set ────────────────────────────────
+    # ── Step 3: Build test set ───────────────────────────────────────────
     print_section("STEP 3: Test Set")
-    test_set = create_synthetic_test_set(
-        class_names, num_samples=args.num_samples, seed=args.seed
-    )
-    print(f"Generated {len(test_set)} synthetic test images")
-    print(f"Sample entries:")
-    for img_id, label in list(test_set.items())[:5]:
-        print(f"  {img_id}: {label}")
-    print(f"  ... ({len(test_set) - 5} more)")
+    if use_real_images:
+        # Real images: (image_id, path, label). Ground truth = folder name.
+        test_items = [(sid, path, label) for (sid, path, label) in real_samples]
+        test_set = {sid: label for (sid, _path, label) in real_samples}
+        n_classes = len(set(test_set.values()))
+        print(f"Loaded {len(test_items)} real test images across {n_classes} classes")
+        for sid, _p, label in test_items[:5]:
+            print(f"  {sid}  ->  {label}")
+        if len(test_items) > 5:
+            print(f"  ... ({len(test_items) - 5} more)")
+    else:
+        test_set = create_synthetic_test_set(
+            class_names, num_samples=args.num_samples, seed=args.seed
+        )
+        test_items = [(sid, None, label) for sid, label in test_set.items()]
+        print(f"Generated {len(test_set)} synthetic test images")
+        print(f"Sample entries:")
+        for img_id, label in list(test_set.items())[:5]:
+            print(f"  {img_id}: {label}")
+        print(f"  ... ({len(test_set) - 5} more)")
 
     # ── Step 4: Run pipeline ─────────────────────────────────────────────
     print_section("STEP 4: Running Pipeline")
     start_time = time.time()
 
     decisions = []
-    for i, (img_id, true_label) in enumerate(test_set.items()):
-        # In mock mode, pass the ground-truth label as the "image" so the
-        # MockVisionAgent acts as a realistic (~82% accurate) classifier whose
-        # confidence correlates with correctness. In ensemble mode we'd load
-        # the actual image file here (Phase 3, once TEST_IMAGE_DIR is populated).
-        image = true_label if args.mode == "mock" else None  # TODO: real images
+    for i, (img_id, path, true_label) in enumerate(test_items):
+        if use_real_images:
+            # Load the real image; pass a numpy array too for quality checks.
+            from PIL import Image
+            import numpy as _np
+            pil = Image.open(path).convert("RGB")
+            image = pil
+            image_array = _np.array(pil)
+        else:
+            # Mock mode: pass the ground-truth label as the "image" so the
+            # MockVisionAgent acts as a realistic (~82% accurate) classifier
+            # whose confidence correlates with correctness.
+            image = true_label
+            image_array = None
 
         decision = orchestrator.process_image(
             image=image,
             image_id=img_id,
-            image_array=None,  # No real images in Phase 1
+            image_array=image_array,
         )
         decisions.append(decision)
 
         if (i + 1) % 10 == 0 or i == 0:
             print(
-                f"  [{i+1}/{len(test_set)}] "
-                f"{img_id}: {decision.action:25s} "
+                f"  [{i+1}/{len(test_items)}] "
+                f"{img_id[:30]}: {decision.action:25s} "
                 f"conf={decision.confidence:.3f} "
                 f"pred={decision.prediction[:30]}"
             )
@@ -248,9 +314,11 @@ def main():
     # ── Step 6: Evaluation Report ────────────────────────────────────────
     print_section("STEP 6: Evaluation Report")
 
+    n_models = len(checkpoint_paths) if args.mode == "ensemble" else 1
     evaluator = Evaluator(
         ground_truth=test_set,
         class_names=class_names,
+        n_models=n_models,
     )
     report = evaluator.evaluate(
         [d.__dict__ if hasattr(d, '__dict__') else d for d in decisions]
@@ -258,6 +326,7 @@ def main():
 
     print(f"  Total images evaluated:     {report.total_images}")
     print(f"  Classifier accuracy:        {report.classifier_accuracy:.1%}")
+    print(f"  Classifier macro-F1:        {report.classifier_macro_f1:.1%}")
     print(f"  Correct action rate:        {report.correct_action_rate:.1%}")
     print(f"  Harmful action rate:        {report.harmful_action_rate:.1%}")
     print(f"  Naive baseline harmful:     {report.naive_baseline_harmful_rate:.1%}")
@@ -331,6 +400,7 @@ def main():
                 "report": {
                     "total_images": report.total_images,
                     "classifier_accuracy": report.classifier_accuracy,
+                    "classifier_macro_f1": report.classifier_macro_f1,
                     "correct_action_rate": report.correct_action_rate,
                     "harmful_action_rate": report.harmful_action_rate,
                     "naive_baseline_harmful_rate": report.naive_baseline_harmful_rate,

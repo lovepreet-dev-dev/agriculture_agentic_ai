@@ -19,7 +19,7 @@ def call_llm(
     *,
     system: str | None = None,
     temperature: float = 0.2,
-    max_tokens: int = 800,
+    max_tokens: int = 3000,
 ) -> str:
     """Send a single prompt to the configured LLM and return its text.
 
@@ -27,7 +27,11 @@ def call_llm(
         prompt: User prompt.
         system: Optional system instruction.
         temperature: Sampling temperature.
-        max_tokens: Response cap.
+        max_tokens: Response cap. Defaults high because "reasoning" models
+            (e.g. tencent/hy3, deepseek-r1) spend a large hidden token budget
+            thinking before they emit any visible `content`; too small a cap
+            makes them hit the length limit mid-thought and return an empty
+            answer.
 
     Returns:
         The model's text response.
@@ -60,4 +64,16 @@ def call_llm(
         temperature=temperature,
         max_tokens=max_tokens,
     )
-    return (resp.choices[0].message.content or "").strip()
+    message = resp.choices[0].message
+    content = (message.content or "").strip()
+    if content:
+        return content
+
+    # Fallback for reasoning models that returned an empty `content` (e.g. they
+    # hit the token cap while still thinking). Recover whatever visible text is
+    # in the reasoning channel so the caller gets a usable answer rather than "".
+    extra = getattr(message, "model_extra", None) or {}
+    reasoning = extra.get("reasoning") or getattr(message, "reasoning", None)
+    if reasoning:
+        return str(reasoning).strip()
+    return ""

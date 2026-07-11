@@ -22,6 +22,7 @@ class EvaluationReport:
 
     total_images: int = 0
     classifier_accuracy: float = 0.0
+    classifier_macro_f1: float = 0.0
     correct_action_rate: float = 0.0
     harmful_action_rate: float = 0.0
     naive_baseline_harmful_rate: float = 0.0
@@ -47,9 +48,11 @@ class Evaluator:
         self,
         ground_truth: dict[str, str] | None = None,
         class_names: list[str] | None = None,
+        n_models: int = 1,
     ):
         self.ground_truth = ground_truth or {}
         self.class_names = class_names or []
+        self.n_models = n_models
 
     def evaluate(
         self,
@@ -77,6 +80,7 @@ class Evaluator:
         healthy_correct = 0
         total_with_gt = 0
         disagreements_caught = 0
+        n_disagreements = 0
 
         action_counts: dict[str, int] = {}
         per_class: dict[str, dict[str, Any]] = {}
@@ -143,6 +147,8 @@ class Evaluator:
                 # (With N=1, agreement is always 1.0, so this is N/A)
                 agr = d.get("agreement_ratio", 1.0)
                 conf = d.get("confidence", 0.0)
+                if agr < 1.0:
+                    n_disagreements += 1
                 if (
                     agr < 1.0
                     and conf >= 0.55
@@ -159,6 +165,8 @@ class Evaluator:
                 and d.get("prediction") == self.ground_truth[d["image_id"]]
             ) / total_with_gt
 
+            report.classifier_macro_f1 = self._macro_f1(decisions)
+
             report.correct_action_rate = correct_actions / total_with_gt
             report.harmful_action_rate = harmful_actions / total_with_gt
             report.naive_baseline_harmful_rate = naive_harmful / total_with_gt
@@ -174,20 +182,74 @@ class Evaluator:
         report.action_breakdown = action_counts
         report.ablation_disagreement_caught = disagreements_caught
 
-        if disagreements_caught > 0:
+        if self.n_models < 2:
             report.ablation_note = (
-                f"Ensemble disagreement caught {disagreements_caught} errors "
-                f"that confidence-thresholding alone would have missed."
+                f"Ablation N/A: with N={self.n_models} model, agreement_ratio is "
+                "always 1.0 and cannot provide an independent uncertainty signal. "
+                "This metric becomes meaningful when N>=2 models are used."
+            )
+        elif disagreements_caught > 0:
+            report.ablation_note = (
+                f"Ensemble of {self.n_models} models disagreed on "
+                f"{n_disagreements} image(s); disagreement caught "
+                f"{disagreements_caught} confident error(s) that "
+                f"confidence-thresholding alone would have missed."
+            )
+        elif n_disagreements > 0:
+            report.ablation_note = (
+                f"Ensemble of {self.n_models} models disagreed on "
+                f"{n_disagreements} image(s), all of which were routed correctly "
+                f"(escalated or still predicted right), so disagreement caught no "
+                f"additional missed errors this run."
             )
         else:
             report.ablation_note = (
-                "Ablation N/A: with N=1 model, agreement_ratio is always 1.0 "
-                "and cannot provide an independent uncertainty signal. "
-                "This metric becomes meaningful when N>=2 models are used."
+                f"Ensemble of {self.n_models} models was unanimous on all "
+                f"{len(decisions)} images (agreement_ratio 1.0 throughout), so the "
+                f"disagreement signal was never triggered on this test set."
             )
 
         report.per_class_accuracy = per_class
         return report
+
+    def _macro_f1(self, decisions: list[dict[str, Any]]) -> float:
+        """Macro-averaged F1 of the Vision Agent (Table III in the paper).
+
+        Computed over the classifier's raw predictions vs ground truth,
+        independent of routing. Averaged over every class that appears in the
+        ground truth (a class with no support contributes 0 to recall).
+        """
+        tp: dict[str, int] = {}
+        fp: dict[str, int] = {}
+        fn: dict[str, int] = {}
+        gt_classes: set[str] = set()
+
+        for d in decisions:
+            image_id = d.get("image_id", "")
+            if image_id not in self.ground_truth:
+                continue
+            y = self.ground_truth[image_id]
+            yhat = d.get("prediction", "")
+            gt_classes.add(y)
+            if yhat == y:
+                tp[y] = tp.get(y, 0) + 1
+            else:
+                fp[yhat] = fp.get(yhat, 0) + 1
+                fn[y] = fn.get(y, 0) + 1
+
+        if not gt_classes:
+            return 0.0
+
+        f1s = []
+        for c in gt_classes:
+            t = tp.get(c, 0)
+            p_den = t + fp.get(c, 0)
+            r_den = t + fn.get(c, 0)
+            precision = t / p_den if p_den else 0.0
+            recall = t / r_den if r_den else 0.0
+            f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+            f1s.append(f1)
+        return sum(f1s) / len(f1s)
 
     def generate_coverage_report(
         self,

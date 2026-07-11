@@ -130,7 +130,14 @@ class EnsembleVisionAgent(VisionAgent):
         self.std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
     def _preprocess(self, image: Any) -> torch.Tensor:
-        """Convert input image to normalized tensor."""
+        """Convert input to a normalized (1, 3, 224, 224) tensor.
+
+        Accepts a file path (str/Path), a PIL image, or an already-shaped
+        tensor. Path/PIL inputs are resized to 224x224 and normalized with the
+        ImageNet statistics the PlantVillage ResNet18 was trained on. A tensor
+        is assumed to be already preprocessed and is passed through.
+        """
+        # Already-preprocessed tensor -> passthrough (e.g. smoke tests).
         if isinstance(image, torch.Tensor):
             if image.dim() == 3:
                 image = image.unsqueeze(0)
@@ -138,11 +145,15 @@ class EnsembleVisionAgent(VisionAgent):
 
         from PIL import Image
 
+        # File path -> open it.
+        if isinstance(image, (str, Path)):
+            image = Image.open(image)
+
         if isinstance(image, Image.Image):
-            image = image.convert("RGB")
-            image = torch.tensor(np.array(image)).permute(2, 0, 1).float() / 255.0
-            image = image.unsqueeze(0)
-            return image.to(self.device)
+            image = image.convert("RGB").resize((224, 224))
+            tensor = torch.tensor(np.array(image)).permute(2, 0, 1).float() / 255.0
+            tensor = (tensor - self.mean) / self.std  # ImageNet normalization
+            return tensor.unsqueeze(0).to(self.device)
 
         raise TypeError(f"Unsupported image type: {type(image)}")
 
