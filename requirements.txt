@@ -1,0 +1,16 @@
+# Agentic layer dependencies (the `agents/` package).
+# For the RAG retrieval stack, also install: rag/rag/requirements.txt
+#   pip install -r rag/rag/requirements.txt
+
+# Vision
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24
+opencv-python-headless>=4.8      # image quality checks (blur/brightness)
+
+# Config + LLM (OpenRouter via OpenAI-compatible client)
+python-dotenv>=1.0.1
+openai>=1.0
+
+# Retrieval reuses the RAG project's own stack (sentence-transformers, faiss-cpu,
+# langchain-community). Install those via rag/rag/requirements.txt.

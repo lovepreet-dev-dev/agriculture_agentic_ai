@@ -75,6 +75,9 @@ class Orchestrator:
         vision_agent: VisionAgent,
         quality_agent: ConfidenceQualityAgent | None = None,
         decision_log_path: str | Path | None = None,
+        retriever: Any = None,
+        reasoning_agent: Any = None,
+        retrieval_top_k: int = 5,
     ):
         self.vision_agent = vision_agent
         self.quality_agent = quality_agent or ConfidenceQualityAgent()
@@ -85,6 +88,11 @@ class Orchestrator:
         self.decision_log_path = (
             Path(decision_log_path) if decision_log_path else None
         )
+        # Phase 3 wiring: when both are provided, the moderate tier runs REAL
+        # retrieval + reasoning. When absent (Phase 1), it returns a stub.
+        self.retriever = retriever
+        self.reasoning_agent = reasoning_agent
+        self.retrieval_top_k = retrieval_top_k
         self._decisions: list[dict[str, Any]] = []
 
     def process_image(
@@ -214,7 +222,7 @@ class Orchestrator:
         output = (
             f"Diagnosis: {readable} "
             f"(confidence={pred.confidence:.1%}, "
-            f"margin={pred.margin:.3f}, "
+            f"margin={quality.margin:.3f}, "
             f"agreement={pred.agreement_ratio:.0%}). "
             f"Recommended treatment: Consult local agricultural extension "
             f"for {readable} management guidelines."
@@ -223,7 +231,7 @@ class Orchestrator:
             image_id=image_id,
             prediction=pred.label,
             confidence=pred.confidence,
-            margin=pred.margin,
+            margin=quality.margin,
             agreement_ratio=pred.agreement_ratio,
             quality_ok=quality.quality_ok,
             action="direct_diagnosis",
@@ -243,7 +251,6 @@ class Orchestrator:
         """
         result = self.retrieve_and_reason(pred, image_id)
         result.quality_ok = quality.quality_ok
-        self._log_decision(result)
         return result
 
     def _handle_escalate(
@@ -272,41 +279,103 @@ class Orchestrator:
             image_id=image_id,
             prediction=pred.label,
             confidence=pred.confidence,
-            margin=pred.margin,
+            margin=quality.margin,
             agreement_ratio=pred.agreement_ratio,
             quality_ok=quality.quality_ok,
             action="escalate_to_human",
             output=output,
         )
 
-    # ── STUB: to be replaced in Phase 3 ──────────────────────────────────
+    # ── Retrieval + reasoning (real when wired, stub otherwise) ──────────
 
     def retrieve_and_reason(
         self, pred: VisionPrediction, image_id: str
     ) -> OrchestratorDecision:
-        """Placeholder for retrieval + reasoning pipeline.
+        """Moderate-tier handler: retrieve evidence, then reason over it.
 
-        Phase 3 will replace this with:
+        When a retriever + reasoning agent are wired in (Phase 3):
           1. Clean class name -> query string
-          2. Call real RAG retrieval
-          3. If no results -> escalate to human
-          4. Pass to reasoning agent -> grounded recommendation
+          2. Real RAG retrieval over the FAISS index
+          3. If no results -> escalate to human (empty-retrieval fallback)
+          4. Reasoning agent -> grounded, cited recommendation
+        When unwired (Phase 1), returns a clearly-marked stub so the routing
+        logic remains fully testable without the index.
         """
         readable = _clean_class_name(pred.label)
-        output = (
-            f"[STUB] Retrieve and reason for: {readable}. "
-            f"Confidence={pred.confidence:.1%}, margin={pred.margin:.3f}. "
-            f"Retrieval pipeline not yet connected."
+        sorted_probs = sorted(pred.probs.values(), reverse=True)
+        margin = sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else 0.0
+
+        # Phase 1: no retrieval wired -> stub marker.
+        if self.retriever is None or self.reasoning_agent is None:
+            output = (
+                f"[STUB] Retrieve and reason for: {readable}. "
+                f"Confidence={pred.confidence:.1%}, margin={margin:.3f}. "
+                f"Retrieval pipeline not yet connected."
+            )
+            return OrchestratorDecision(
+                image_id=image_id,
+                prediction=pred.label,
+                confidence=pred.confidence,
+                margin=margin,
+                agreement_ratio=pred.agreement_ratio,
+                quality_ok=True,
+                action="retrieve_and_reason",
+                output=output,
+            )
+
+        # Phase 3: real retrieval + reasoning.
+        query = readable
+        passages = self.retriever.retrieve(query, k=self.retrieval_top_k)
+
+        # Empty-retrieval fallback -> escalate to human.
+        if not passages:
+            output = (
+                f"ESCALATE TO HUMAN EXPERT — no supporting documents retrieved "
+                f"for '{readable}' (confidence={pred.confidence:.1%}). Cannot "
+                f"ground a recommendation. Please consult a plant pathology expert."
+            )
+            return OrchestratorDecision(
+                image_id=image_id,
+                prediction=pred.label,
+                confidence=pred.confidence,
+                margin=margin,
+                agreement_ratio=pred.agreement_ratio,
+                quality_ok=True,
+                action="escalate_to_human",
+                output=output,
+            )
+
+        result = self.reasoning_agent.reason(
+            label=pred.label,
+            confidence=pred.confidence,
+            passages=passages,
         )
+
+        # Reasoning may decide the evidence is off-topic -> escalate.
+        if getattr(result, "escalate", False):
+            return OrchestratorDecision(
+                image_id=image_id,
+                prediction=pred.label,
+                confidence=pred.confidence,
+                margin=margin,
+                agreement_ratio=pred.agreement_ratio,
+                quality_ok=True,
+                action="escalate_to_human",
+                output=result.recommendation,
+                retrieved_doc_ids=list(getattr(result, "doc_ids", [])),
+            )
+
         return OrchestratorDecision(
             image_id=image_id,
             prediction=pred.label,
             confidence=pred.confidence,
-            margin=pred.margin,
+            margin=margin,
             agreement_ratio=pred.agreement_ratio,
             quality_ok=True,
             action="retrieve_and_reason",
-            output=output,
+            output=result.recommendation,
+            retrieved_doc_ids=list(getattr(result, "doc_ids", [])),
+            reasoning_output=result.recommendation,
         )
 
     # ── Logging ───────────────────────────────────────────────────────────
@@ -316,11 +385,11 @@ class Orchestrator:
         entry = asdict(decision)
         self._decisions.append(entry)
         logger.info(
-            "orchestrator_decision",
-            image_id=decision.image_id,
-            action=decision.action,
-            prediction=decision.prediction,
-            confidence=round(decision.confidence, 4),
+            "decision image_id=%s action=%s prediction=%s confidence=%.4f",
+            decision.image_id,
+            decision.action,
+            decision.prediction,
+            decision.confidence,
         )
 
     def flush_log(self) -> None:
@@ -331,9 +400,9 @@ class Orchestrator:
         with open(self.decision_log_path, "w") as f:
             json.dump(self._decisions, f, indent=2)
         logger.info(
-            "decision_log_written",
-            path=str(self.decision_log_path),
-            count=len(self._decisions),
+            "decision_log_written path=%s count=%d",
+            str(self.decision_log_path),
+            len(self._decisions),
         )
 
     def get_decisions(self) -> list[dict[str, Any]]:

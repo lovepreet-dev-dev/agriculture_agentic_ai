@@ -22,7 +22,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from agents.vision_agent import create_vision_agent, _load_class_names
+from agents import config
+from agents.vision_agent import create_vision_agent, _load_class_names, _clean_class_name
 from agents.confidence_quality_agent import ConfidenceQualityAgent
 from agents.orchestrator import Orchestrator
 from agents.evaluate import Evaluator
@@ -101,10 +102,15 @@ def main():
         "--log-path", type=str, default=None,
         help="Path to write decision log JSON"
     )
+    parser.add_argument(
+        "--retrieval", choices=["auto", "on", "off"], default="auto",
+        help="Wire real RAG retrieval + reasoning into the moderate tier. "
+             "'auto' enables it when the FAISS index exists."
+    )
     args = parser.parse_args()
 
     class_names = _load_class_names()
-    print_section("AGENTIC PLANT DISEASE DIAGNOSIS — PHASE 1 (STUBBED RETRIEVAL)")
+    print_section("AGENTIC PLANT DISEASE DIAGNOSIS")
     print(f"Mode: {args.mode}")
     print(f"Classes: {len(class_names)}")
     print(f"Healthy classes: {sum(1 for c in class_names if c.endswith('___healthy'))}")
@@ -126,6 +132,36 @@ def main():
         vision_agent = create_vision_agent(mode="mock", seed=args.seed)
         print("MockVisionAgent created (synthetic probability distributions)")
 
+    # ── Step 1b: Wire retrieval + reasoning (Phase 3) ────────────────────
+    print_section("STEP 1b: Retrieval + Reasoning")
+    index_exists = (config.FAISS_INDEX_DIR / "index.faiss").exists()
+    if args.retrieval == "on":
+        enable_retrieval = True
+    elif args.retrieval == "off":
+        enable_retrieval = False
+    else:  # auto
+        enable_retrieval = index_exists
+
+    retriever = None
+    reasoning_agent = None
+    if enable_retrieval:
+        if not index_exists:
+            print(f"  Index not found at {config.FAISS_INDEX_DIR} — run "
+                  f"rag/rag/index_corpus.py first. Falling back to stub.")
+            enable_retrieval = False
+        else:
+            from agents.retrieval import get_retriever
+            from agents.reasoning_agent import ReasoningAgent
+            retriever = get_retriever()
+            reasoning_agent = ReasoningAgent()
+            print(f"  Retrieval: ON  (FAISS index: {config.FAISS_INDEX_DIR})")
+            print(f"  Index chunks: {retriever.document_count}")
+            print(f"  Retrieval top-k: {config.RETRIEVAL_TOP_K}")
+            print(f"  LLM reasoning: "
+                  f"{'ON (OpenRouter: ' + config.OPENROUTER_MODEL + ')' if config.llm_is_configured() else 'OFF — evidence-summary fallback (set OPENROUTER_API_KEY to enable)'}")
+    if not enable_retrieval:
+        print("  Retrieval: OFF (moderate tier uses the Phase-1 stub)")
+
     # ── Step 2: Create orchestrator ──────────────────────────────────────
     print_section("STEP 2: Orchestrator")
     log_path = args.log_path or str(
@@ -135,6 +171,9 @@ def main():
         vision_agent=vision_agent,
         quality_agent=ConfidenceQualityAgent(),
         decision_log_path=log_path,
+        retriever=retriever,
+        reasoning_agent=reasoning_agent,
+        retrieval_top_k=config.RETRIEVAL_TOP_K,
     )
     print(f"Decision log path: {log_path}")
     print(f"Routing thresholds:")
@@ -160,9 +199,11 @@ def main():
 
     decisions = []
     for i, (img_id, true_label) in enumerate(test_set.items()):
-        # In mock mode, we pass None as the image (MockVisionAgent ignores it)
-        # In ensemble mode, we'd need actual images
-        image = None if args.mode == "mock" else None  # TODO: real images
+        # In mock mode, pass the ground-truth label as the "image" so the
+        # MockVisionAgent acts as a realistic (~82% accurate) classifier whose
+        # confidence correlates with correctness. In ensemble mode we'd load
+        # the actual image file here (Phase 3, once TEST_IMAGE_DIR is populated).
+        image = true_label if args.mode == "mock" else None  # TODO: real images
 
         decision = orchestrator.process_image(
             image=image,
@@ -183,18 +224,26 @@ def main():
     print(f"\nCompleted {len(decisions)} images in {elapsed:.2f}s "
           f"({len(decisions)/max(elapsed, 0.001):.0f} img/s)")
 
-    # ── Step 5: Sample outputs ───────────────────────────────────────────
+    # ── Step 5: Sample outputs (one of each action, fuller text) ─────────
     print_section("STEP 5: Sample Outputs")
-    for d in decisions[:8]:
-        print(f"\n--- {d.image_id} ---")
+    # Show up to two examples per action so every branch is visible, and print
+    # the full retrieve_and_reason output (that's the grounded recommendation).
+    shown: dict[str, int] = {}
+    samples = []
+    for d in decisions:
+        if shown.get(d.action, 0) < 2:
+            samples.append(d)
+            shown[d.action] = shown.get(d.action, 0) + 1
+    for d in samples:
+        full = d.action == "retrieve_and_reason"
+        print(f"\n--- {d.image_id}  [{d.action}] ---")
         print(f"  Prediction:  {d.prediction}")
-        print(f"  Confidence:  {d.confidence:.4f}")
-        print(f"  Margin:      {d.margin:.4f}")
-        print(f"  Agreement:   {d.agreement_ratio:.0%}")
-        print(f"  Quality OK:  {d.quality_ok}")
-        print(f"  Action:      {d.action}")
-        print(f"  Healthy:     {d.is_healthy}")
-        print(f"  Output:      {d.output[:120]}...")
+        print(f"  Confidence:  {d.confidence:.4f}   Margin: {d.margin:.4f}   "
+              f"Agreement: {d.agreement_ratio:.0%}   Healthy: {d.is_healthy}")
+        if d.retrieved_doc_ids:
+            print(f"  Retrieved:   {len(d.retrieved_doc_ids)} chunk(s)")
+        out = d.output if full else (d.output[:200] + ("…" if len(d.output) > 200 else ""))
+        print(f"  Output:\n    " + out.replace("\n", "\n    "))
 
     # ── Step 6: Evaluation Report ────────────────────────────────────────
     print_section("STEP 6: Evaluation Report")
@@ -242,14 +291,32 @@ def main():
 
     # ── Step 8: Class coverage report ────────────────────────────────────
     print_section("STEP 8: Class Coverage Report (for paper)")
-    # In Phase 1, no retrieval happens, so all classes are "uncovered"
-    coverage = evaluator.generate_coverage_report(retrieved_class_counts={})
-    print(f"  Total classes:   {coverage['total_classes']}")
-    print(f"  Covered:         {coverage['covered_classes']}")
-    print(f"  Uncovered:       {coverage['uncovered_classes']}")
-    print(f"  Coverage ratio:  {coverage['coverage_ratio']:.1%}")
-    print(f"\n  All 38 classes are UNCOVERED in Phase 1 (retrieval stubbed).")
-    print(f"  Phase 2+3 will populate this after RAG indexing + retrieval.")
+    if enable_retrieval and retriever is not None:
+        # Real coverage: query each class and count strong (>=0.75 cosine) hits.
+        COVERAGE_SIM = 0.75
+        retrieved_class_counts: dict[str, int] = {}
+        for cn in class_names:
+            passages = retriever.retrieve(_clean_class_name(cn), k=config.RETRIEVAL_TOP_K)
+            retrieved_class_counts[cn] = sum(1 for p in passages if p.score >= COVERAGE_SIM)
+        coverage = evaluator.generate_coverage_report(retrieved_class_counts)
+        print(f"  Total classes:   {coverage['total_classes']}")
+        print(f"  Covered:         {coverage['covered_classes']}")
+        print(f"  Uncovered:       {coverage['uncovered_classes']}")
+        print(f"  Coverage ratio:  {coverage['coverage_ratio']:.1%}")
+        if coverage["uncovered"]:
+            print("  Uncovered classes:")
+            for e in coverage["uncovered"]:
+                print(f"    - {e['class']}")
+        else:
+            print("  All 38 classes have retrievable documents (>=0.75 cosine).")
+    else:
+        coverage = evaluator.generate_coverage_report(retrieved_class_counts={})
+        print(f"  Total classes:   {coverage['total_classes']}")
+        print(f"  Covered:         {coverage['covered_classes']}")
+        print(f"  Uncovered:       {coverage['uncovered_classes']}")
+        print(f"  Coverage ratio:  {coverage['coverage_ratio']:.1%}")
+        print(f"\n  Retrieval stubbed — run with --retrieval on (needs the FAISS "
+              f"index) to populate coverage.")
 
     # ── Save results ─────────────────────────────────────────────────────
     results_path = PROJECT_ROOT / "agents" / "evaluation_results.json"
@@ -258,6 +325,8 @@ def main():
         json.dump(
             {
                 "mode": args.mode,
+                "retrieval_enabled": bool(enable_retrieval),
+                "llm_reasoning_enabled": bool(enable_retrieval and config.llm_is_configured()),
                 "num_samples": len(decisions),
                 "report": {
                     "total_images": report.total_images,
@@ -279,10 +348,16 @@ def main():
     orchestrator.flush_log()
     print(f"  Decision log:    {log_path}")
 
-    print_section("PHASE 1 COMPLETE")
-    print("  The agentic skeleton is sound.")
-    print("  Next: Phase 2 — Index corpus with RAG project's own pipeline.")
-    print("        Phase 3 — Connect real retrieval + reasoning.")
+    if enable_retrieval:
+        print_section("RUN COMPLETE — full pipeline (vision -> route -> retrieve -> reason)")
+        print("  Real retrieval + reasoning wired in over the FAISS index.")
+        if not config.llm_is_configured():
+            print("  LLM reasoning used the offline evidence-summary fallback.")
+            print("  Set OPENROUTER_API_KEY in .env for full LLM-grounded answers.")
+    else:
+        print_section("RUN COMPLETE — agentic skeleton (retrieval stubbed)")
+        print("  Routing, escalation, healthy-class handling, and metrics all work.")
+        print("  Run with --retrieval on (after indexing) for the full pipeline.")
 
 
 if __name__ == "__main__":

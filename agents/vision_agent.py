@@ -21,7 +21,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import models
+
+# NOTE: torchvision is imported lazily inside _ResNet18Wrapper so that the
+# MockVisionAgent path (and the whole agentic pipeline) works even when
+# torchvision is not installed. Only the real EnsembleVisionAgent needs it.
 
 
 # ── Contract ─────────────────────────────────────────────────────────────────
@@ -83,6 +86,8 @@ class _ResNet18Wrapper(nn.Module):
 
     def __init__(self, checkpoint_path: str | Path, num_classes: int = 38):
         super().__init__()
+        from torchvision import models  # lazy: only the real backend needs it
+
         self.model = models.resnet18(weights=None)
         self.model.fc = nn.Linear(512, num_classes)
         state_dict = torch.load(
@@ -199,36 +204,97 @@ class MockVisionAgent(VisionAgent):
         self,
         class_names: list[str] | None = None,
         seed: int | None = None,
+        accuracy: float = 0.82,
     ):
         self.class_names = class_names or _load_class_names()
+        self._class_index = {cn: i for i, cn in enumerate(self.class_names)}
         self.rng = random.Random(seed)
         self.np_rng = np.random.RandomState(seed)
+        # Simulated top-1 accuracy when running in oracle mode (see predict()).
+        self.accuracy = accuracy
 
     def predict(self, image: Any) -> VisionPrediction:
         num_classes = len(self.class_names)
 
-        # Pick a random "true" class to anchor the distribution
-        true_idx = self.rng.randint(0, num_classes - 1)
+        # ── Oracle hint ──────────────────────────────────────────────────
+        # For a meaningful evaluation, main.py passes the ground-truth class
+        # name as `image`. The mock then behaves like a realistic classifier:
+        # correct ~`self.accuracy` of the time, with confidence correlated to
+        # correctness (right answers skew confident, wrong answers skew
+        # uncertain). Real backends receive real images, so a bare string is
+        # unambiguously a mock oracle hint. When no hint is given (image is
+        # None), predictions are random but still span all decision tiers.
+        oracle_idx: int | None = None
+        if isinstance(image, str) and image in self._class_index:
+            oracle_idx = self._class_index[image]
 
-        # Generate a Dirichlet distribution — concentrated on one class
-        # with controlled noise to simulate realistic softmax
-        confidence_level = self.rng.choice(
-            ["high", "medium", "low", "confused"]
-        )
+        if oracle_idx is not None:
+            is_correct = self.rng.random() < self.accuracy
+            if is_correct:
+                true_idx = oracle_idx
+                # A competent classifier is usually confident when right.
+                scenario = self.rng.choices(
+                    ["direct", "low_margin", "moderate"],
+                    weights=[0.70, 0.15, 0.15],
+                )[0]
+            else:
+                # Wrong answer: anchor on some other class, and skew toward
+                # low-confidence / confused so the agentic layer can catch it.
+                true_idx = self.rng.randrange(num_classes)
+                while true_idx == oracle_idx:
+                    true_idx = self.rng.randrange(num_classes)
+                scenario = self.rng.choices(
+                    ["moderate", "low_conf", "confused", "direct"],
+                    weights=[0.30, 0.30, 0.30, 0.10],
+                )[0]
+        else:
+            # No ground-truth hint: random anchor, uniform tier coverage.
+            true_idx = self.rng.randint(0, num_classes - 1)
+            scenario = self.rng.choice(
+                ["direct", "moderate", "low_margin", "low_conf", "confused"]
+            )
 
-        if confidence_level == "high":
-            alpha = 0.3  # very concentrated
-        elif confidence_level == "medium":
-            alpha = 1.0  # moderately spread
-        elif confidence_level == "low":
-            alpha = 3.0  # quite spread
+        # Each scenario targets a specific (top1, top2) probability band, then
+        # we synthesize a realistic-looking softmax hitting those targets:
+        #   direct        -> high conf, wide margin        -> Tier 1
+        #   moderate      -> mid conf                      -> Tier 2 (retrieve)
+        #   low_margin    -> high conf but top1~top2 close -> Tier 2 (retrieve)
+        #   low_conf      -> below escalation threshold    -> Tier 3
+        #   confused      -> low conf + ensemble disagree  -> Tier 3
+
+        if scenario == "direct":
+            top1 = self.rng.uniform(0.88, 0.98)
+            margin_target = self.rng.uniform(0.20, top1 - 0.02)
+        elif scenario == "moderate":
+            top1 = self.rng.uniform(0.60, 0.82)
+            margin_target = self.rng.uniform(0.18, min(0.35, top1 - 0.05))
+        elif scenario == "low_margin":
+            top1 = self.rng.uniform(0.86, 0.95)
+            margin_target = self.rng.uniform(0.02, 0.12)  # < 0.15 -> retrieve
+        elif scenario == "low_conf":
+            top1 = self.rng.uniform(0.35, 0.52)
+            margin_target = self.rng.uniform(0.03, 0.10)
         else:  # confused
-            alpha = 8.0  # nearly uniform
+            top1 = self.rng.uniform(0.20, 0.45)
+            margin_target = self.rng.uniform(0.01, 0.06)
 
-        raw_probs = self.np_rng.dirichlet(np.ones(num_classes) * alpha)
+        top2 = max(0.0, top1 - margin_target)
 
-        # Boost the chosen class to make it the winner
-        raw_probs[true_idx] *= self.rng.uniform(3.0, 10.0)
+        # Distribute the remaining mass across the other classes as a
+        # gently-decaying tail so the vector looks like a real softmax.
+        remaining = max(0.0, 1.0 - top1 - top2)
+        tail = self.np_rng.dirichlet(np.ones(num_classes - 2) * 0.4)
+        tail = tail * remaining
+
+        raw_probs = np.empty(num_classes, dtype=np.float64)
+        # Place top1 on the anchored true class, top2 on a distinct runner-up.
+        runner_idx = (true_idx + 1) % num_classes
+        raw_probs[true_idx] = top1
+        raw_probs[runner_idx] = top2
+        tail_iter = iter(tail)
+        for i in range(num_classes):
+            if i not in (true_idx, runner_idx):
+                raw_probs[i] = next(tail_iter)
         raw_probs = raw_probs / raw_probs.sum()
 
         final_idx = int(np.argmax(raw_probs))
@@ -238,11 +304,9 @@ class MockVisionAgent(VisionAgent):
         sorted_probs = np.sort(raw_probs)[::-1]
         margin = float(sorted_probs[0] - sorted_probs[1])
 
-        # Simulate ensemble disagreement (even though N=1 mock, we can
-        # pretend there are multiple voters)
-        if confidence_level == "confused":
+        # Simulate ensemble disagreement (N=1 mock pretends to be a voter set).
+        if scenario == "confused":
             agreement_ratio = self.rng.choice([0.0, 0.33, 0.5])
-            # Add a second fake prediction that disagrees
             fake_pred_idx = self.rng.randint(0, num_classes - 1)
             while fake_pred_idx == final_idx:
                 fake_pred_idx = self.rng.randint(0, num_classes - 1)
