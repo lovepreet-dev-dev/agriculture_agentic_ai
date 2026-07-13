@@ -137,6 +137,12 @@ def main():
         help="Directory of real test images (per-class subfolders). Used in "
              "ensemble mode. Defaults to TEST_IMAGE_DIR from .env."
     )
+    parser.add_argument(
+        "--models", default="ensemble",
+        choices=["ensemble", "fedavg", "fedopt", "fedma"],
+        help="Vision configuration: the full 3-model ensemble (default) or a "
+             "single named checkpoint (for single-vs-ensemble comparison)."
+    )
     args = parser.parse_args()
 
     class_names = _load_class_names()
@@ -163,11 +169,15 @@ def main():
         args.mode = "mock"
 
     if args.mode == "ensemble":
-        checkpoint_paths = [
-            PROJECT_ROOT / "model" / "fedma_global_model_plantvillage.pth",
-            PROJECT_ROOT / "model" / "fedopt_plantvillage.pth",
-            PROJECT_ROOT / "model" / "fedavg_round10.pt",
-        ]
+        all_checkpoints = {
+            "fedma": PROJECT_ROOT / "model" / "fedma_global_model_plantvillage.pth",
+            "fedopt": PROJECT_ROOT / "model" / "fedopt_plantvillage.pth",
+            "fedavg": PROJECT_ROOT / "model" / "fedavg_round10.pt",
+        }
+        if args.models == "ensemble":
+            checkpoint_paths = list(all_checkpoints.values())
+        else:
+            checkpoint_paths = [all_checkpoints[args.models]]
         vision_agent = create_vision_agent(
             mode="ensemble",
             checkpoint_paths=checkpoint_paths,

@@ -7,6 +7,8 @@
 \usepackage{booktabs}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
 \usepackage{url}
 \usepackage{array}
 \usepackage{algorithm}
@@ -42,7 +44,7 @@ Jalandhar, Punjab, India \\
 \maketitle
 
 \begin{abstract}
-Automated plant disease detection using convolutional neural networks has achieved strong classification accuracy on benchmark datasets such as PlantVillage, yet a standalone classifier provides only a label and a confidence score: it offers no explanation, no differential reasoning over plausible alternatives, and no mechanism to defer uncertain cases to a human expert. This paper presents an agentic artificial intelligence framework that wraps a ResNet-18 vision classifier with four cooperating agents -- a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator -- to convert disease classification into an autonomous, explainable, and safety-aware diagnostic advisory system. The Orchestrator conditions expensive retrieval and reasoning computation on prediction confidence and class ambiguity, invoking a full retrieval-augmented reasoning pipeline only for uncertain cases and escalating low-confidence, low-quality inputs directly to human review rather than acting on them. We evaluate the system on the PlantVillage dataset using both conventional classification metrics and a set of agentic metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- that quantify the safety-utility trade-off of autonomous deferral relative to a naive always-trust-the-classifier baseline. On a held-out test set of 114 images spanning all 38 classes, a single ResNet-18 classifier attains a top-1 accuracy of 86.0\%, and the agentic layer reduces the harmful-action rate from a naive always-act baseline of 14.0\% to 3.5\%, at a human-intervention rate of 17.5\%. Replacing the single backbone with a three-model federated ensemble (FedAvg, FedOpt, FedMA) further raises classification accuracy on this in-distribution split and supplies an inter-model agreement signal to the Orchestrator. These results support agent-orchestrated pipelines as a practical bridge between high-accuracy vision models and trustworthy, deployable agricultural decision support.
+Automated plant disease detection using convolutional neural networks has achieved strong classification accuracy on benchmark datasets such as PlantVillage, yet a standalone classifier provides only a label and a confidence score: it offers no explanation, no differential reasoning over plausible alternatives, and no mechanism to defer uncertain cases to a human expert. This paper presents an agentic artificial intelligence framework that wraps a ResNet-18 vision classifier with four cooperating agents -- a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator -- to convert disease classification into an autonomous, explainable, and safety-aware diagnostic advisory system. The Orchestrator conditions expensive retrieval and reasoning computation on prediction confidence and class ambiguity, invoking a full retrieval-augmented reasoning pipeline only for uncertain cases and escalating low-confidence, low-quality inputs directly to human review rather than acting on them. We evaluate the system using both conventional classification metrics and a set of agentic metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- that quantify the safety-utility trade-off of autonomous deferral relative to a naive always-trust-the-classifier baseline. Evaluation is deliberately conducted on an out-of-distribution test set of 190 leaf images collected from sources outside the PlantVillage training corpus, spanning all 38 classes, so that the reported numbers reflect generalization rather than in-distribution recall. Under this realistic distribution shift the classifiers, which reach near-perfect accuracy (up to 100\%) on in-distribution same-source images, generalize far more weakly -- individual models reach 20.5--23.2\% top-1 accuracy and a three-model federated ensemble (FedAvg, FedOpt, FedMA) reaches 24.2\% -- yet it is exactly here that the agentic layer proves its worth: for the ensemble it reduces the harmful-action rate from a naive always-act baseline of 75.8\% to 14.2\%, a roughly five-fold reduction, at a human-intervention rate of 63.2\%, by recognizing its own uncertainty and deferring unreliable cases to a human. These results support agent-orchestrated pipelines as a practical bridge between imperfect vision models and trustworthy, deployable agricultural decision support.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -218,7 +220,7 @@ An episodic Memory Agent that logs each diagnosis and a Follow-up Agent that req
 \section{Experimental Setup}
 \label{sec:exp}
 
-We evaluate the system on a held-out PlantVillage test set of 114 images (three per class across all 38 crop-disease categories), reporting results for both the single-model and the three-model ensemble Vision Agent configurations, using two families of metrics.
+We evaluate the system on an out-of-distribution test set of 190 leaf images collected from public sources outside the PlantVillage dataset (five per class across all 38 crop-disease categories). Because the Vision Agent backbones were trained on PlantVillage, this set deliberately measures generalization under a realistic distribution shift -- heterogeneous, web-sourced photographs rather than the controlled, uniform-background images the models were trained on -- instead of in-distribution recall. We report results for each individual model (FedAvg, FedOpt, FedMA) and for the three-model ensemble, using two families of metrics.
 
 \textbf{Classification metrics.} Top-1 accuracy and macro-averaged F1 score of the Vision Agent in isolation, to establish the baseline perceptual performance the agentic layer builds upon.
 
@@ -237,40 +239,104 @@ where $\hat{y}$ is the predicted label, $y$ is the ground-truth label, and $N$ i
 \section{Results and Discussion}
 \label{sec:results}
 
-Table~\ref{tab:results} reports classifier and agentic-pipeline performance on the PlantVillage test set for both Vision Agent configurations.
+We evaluate on two test sets: an in-distribution set drawn from the same PlantVillage source used to train the backbones (Table~\ref{tab:results_id}), and an out-of-distribution set of web-sourced images (Table~\ref{tab:results_ood}). Both are reported for each individual model and for the three-model ensemble. Fig.~\ref{fig:gap} visualizes the accuracy gap between the two settings, and Fig.~\ref{fig:safety} the safety improvement of the agentic layer under distribution shift.
 
 \begin{table}[t]
 \centering
-\caption{Classification and Agentic Pipeline Results (114-image test set). Starred ensemble values are optimistic; see Section~\ref{sec:results} Limitations.}
-\label{tab:results}
+\caption{In-distribution results on held-out PlantVillage images (114 images, three per class across 38 classes). All values are percentages; best in each column in bold. These numbers are a ceiling reference and largely reflect memorization of the training distribution (see text).}
+\label{tab:results_id}
 \small
-\begin{tabular}{lcc}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
 \toprule
-\textbf{Metric} & \textbf{Single} & \textbf{3-Model} \\
- & \textbf{ResNet-18} & \textbf{Ensemble} \\
+\textbf{Config} & \textbf{Acc} & \textbf{F1} & \textbf{Corr.} & \textbf{Harm.} & \textbf{Naive} & \textbf{Interv.} \\
 \midrule
-Top-1 accuracy & 86.0\% & 100.0\%$^{*}$ \\
-Macro-F1 & 82.8\% & 100.0\%$^{*}$ \\
-Correct-action rate & 87.7\% & 97.4\% \\
-Harmful-action rate & 3.5\% & 0.0\% \\
-Naive baseline harmful-action rate & 14.0\% & 0.0\%$^{*}$ \\
-Human-intervention rate & 17.5\% & 2.6\% \\
-Direct-diagnosis rate & 65.8\% & 74.6\% \\
-Full-pipeline (retrieve+reason) rate & 16.7\% & 22.8\% \\
-Member-model disagreements & --\,($N{=}1$) & 21/114 \\
-Retrieval coverage (of 38 classes) & 100\% & 100\% \\
+FedAvg & \textbf{100.0} & \textbf{100.0} & \textbf{99.1} & \textbf{0.0} & 0.0 & \textbf{0.9} \\
+FedOpt & 95.6 & 95.3 & 97.4 & 0.9 & 4.4 & 3.5 \\
+FedMA & 86.0 & 82.8 & 87.7 & 3.5 & 14.0 & 17.5 \\
+\textbf{Ensemble} & \textbf{100.0} & \textbf{100.0} & 97.4 & \textbf{0.0} & 0.0 & 2.6 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Safety-coverage trade-off (single model).} With the single ResNet-18 backbone, the Vision Agent achieves a top-1 accuracy of 86.0\% and a macro-F1 of 82.8\%. Under the naive baseline policy, in which every prediction is acted upon regardless of confidence, the harmful-action rate is 14.0\%: in that fraction of cases the system would recommend a treatment despite an incorrect diagnosis. The full agentic pipeline reduces this to 3.5\% -- roughly a four-fold reduction -- at a human-intervention rate of 17.5\%. This confirms the intended safety-coverage trade-off described in Section~\ref{sec:arch}: a modest fraction of cases deferred to a human in exchange for a substantial reduction in autonomously issued incorrect advice.
+\begin{table}[t]
+\centering
+\caption{Out-of-distribution results on web-sourced images (190 images, five per class across 38 classes). All values are percentages; best in each column in bold.}
+\label{tab:results_ood}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Config} & \textbf{Acc} & \textbf{F1} & \textbf{Corr.} & \textbf{Harm.} & \textbf{Naive} & \textbf{Interv.} \\
+\midrule
+FedAvg & 20.5 & 17.4 & 72.1 & 24.2 & 79.5 & 41.1 \\
+FedOpt & 23.2 & \textbf{20.4} & 70.5 & 22.6 & 76.8 & 44.7 \\
+FedMA & 21.6 & 15.4 & 72.1 & 15.3 & 78.4 & 67.4 \\
+\textbf{Ensemble} & \textbf{24.2} & 20.3 & \textbf{74.7} & \textbf{14.2} & \textbf{75.8} & 63.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{Effect of ensembling.} Replacing the single backbone with the three-model federated ensemble raises top-1 accuracy to 100\% on this test set and lifts the correct-action rate to 97.4\% while lowering the human-intervention rate to 2.6\%. The ensemble corrects several classes that the single model misclassified outright, and its members disagreed on 21 of the 114 images; this disagreement feeds the Orchestrator's escalation signal even where the averaged confidence is high. As noted below, however, the near-perfect accuracy in this configuration also saturates the safety comparison and should be read with caution.
+\textbf{Generalization gap.} On the in-distribution PlantVillage images (Table~\ref{tab:results_id}) the models score very high -- 86.0--100\% top-1 accuracy for individual models and 100\% for the ensemble. These same-source numbers, however, largely reflect memorization of the training distribution rather than field-relevant recognition, and we report them only as a ceiling. On the out-of-distribution web images (Table~\ref{tab:results_ood}) the accuracy drops sharply, to 20.5--23.2\% for individual models and 24.2\% for the ensemble -- roughly a four-to-five-fold gap, illustrated in Fig.~\ref{fig:gap}. This drop is expected -- the backbones were trained on PlantVillage's controlled, uniform-background images and are here confronted with heterogeneous web photographs -- and it makes the out-of-distribution set a realistic stress case for autonomous deployment rather than a saturated benchmark.
+
+\textbf{Value of the agentic layer.} It is precisely under this distribution shift that the safety contribution of the agentic layer is most visible. A naive policy that acts on every prediction would issue harmful (incorrect) treatment advice on 75.8--79.5\% of cases. The agentic pipeline reduces this to 14.2--24.2\% by recognizing low confidence, low margin, or model disagreement and deferring those cases to a human. For the ensemble, the harmful-action rate falls to 14.2\% -- a roughly five-fold reduction from its 75.8\% naive baseline -- at a human-intervention rate of 63.2\%. This is the intended safety-coverage trade-off: on inputs where the perception module is unreliable, the system withholds automated advice rather than acting on a likely-wrong prediction.
+
+\textbf{Single model versus ensemble.} The three-model ensemble dominates every individual model on the safety-relevant metrics, achieving the highest accuracy (24.2\%) and correct-action rate (74.7\%) and the lowest harmful-action rate (14.2\%). Beyond accuracy, ensembling supplies an independent uncertainty signal: the three members disagreed on 143 of the 190 images, and this disagreement channel caught one confident error that confidence thresholding alone would have missed. Ensembling therefore improves both raw perception and the reliability of the deferral decision.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=4.6cm,
+    ybar, bar width=6pt,
+    enlarge x limits=0.18,
+    ymin=0, ymax=115,
+    ylabel={Top-1 accuracy (\%)},
+    ylabel style={font=\small},
+    symbolic x coords={FedAvg,FedOpt,FedMA,Ensemble},
+    xtick=data, x tick label style={font=\small},
+    legend style={at={(0.5,-0.20)}, anchor=north, legend columns=-1, font=\small},
+    nodes near coords, every node near coord/.append style={font=\tiny, rotate=90, anchor=west},
+    ymajorgrids=true,
+]
+\addplot coordinates {(FedAvg,100.0)(FedOpt,95.6)(FedMA,86.0)(Ensemble,100.0)};
+\addplot coordinates {(FedAvg,20.5)(FedOpt,23.2)(FedMA,21.6)(Ensemble,24.2)};
+\legend{In-distribution (PlantVillage), Out-of-distribution (web)}
+\end{axis}
+\end{tikzpicture}
+\caption{Generalization gap: top-1 accuracy on in-distribution PlantVillage images versus out-of-distribution web images, per configuration. Every model collapses off-distribution, exposing the reliance of raw accuracy on the training distribution.}
+\label{fig:gap}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=4.6cm,
+    ybar, bar width=6pt,
+    enlarge x limits=0.18,
+    ymin=0, ymax=95,
+    ylabel={Harmful-action rate (\%)},
+    ylabel style={font=\small},
+    symbolic x coords={FedAvg,FedOpt,FedMA,Ensemble},
+    xtick=data, x tick label style={font=\small},
+    legend style={at={(0.5,-0.20)}, anchor=north, legend columns=-1, font=\small},
+    nodes near coords, every node near coord/.append style={font=\tiny},
+    ymajorgrids=true,
+]
+\addplot coordinates {(FedAvg,79.5)(FedOpt,76.8)(FedMA,78.4)(Ensemble,75.8)};
+\addplot coordinates {(FedAvg,24.2)(FedOpt,22.6)(FedMA,15.3)(Ensemble,14.2)};
+\legend{Naive always-act baseline, Agentic system}
+\end{axis}
+\end{tikzpicture}
+\caption{Safety improvement on out-of-distribution data: the fraction of cases receiving harmful (incorrect) automated advice under a naive always-act policy versus the agentic system, which defers uncertain cases to a human. The agentic layer cuts harmful actions three- to five-fold across all configurations.}
+\label{fig:safety}
+\end{figure}
 
 \textbf{Grounding and coverage.} Retrieval coverage is complete: all 38 classes return strongly relevant passages from the knowledge base. Qualitative inspection of the full-pipeline reasoning outputs found that they cite specific retrieved passages for their factual claims and, when the retrieved evidence described symptoms but lacked management guidance, the Reasoning Agent declined to fabricate a treatment and instead recommended expert consultation -- the intended hallucination-averse behavior. Because the Orchestrator invokes the Retrieval and Reasoning Agents only for the subset of cases not resolved by the direct-lookup path, the full pipeline also incurs substantially lower average inference cost than a fixed design that always invokes retrieval and reasoning, though a full latency comparison is left for future work.
 
 \subsection{Limitations}
-Four limitations qualify the conclusions of this study. First, and most importantly, the reported accuracies -- particularly the 100\% attained by the ensemble -- reflect in-distribution recognition rather than field generalization. The test images are drawn from the same PlantVillage distribution used to train the classifiers, so a degree of train--test overlap is likely, and the ensemble figures marked with an asterisk in Table~\ref{tab:results} should be read as an upper bound rather than an expected deployment accuracy. A direct consequence is that the ensemble's naive-baseline harmful-action rate collapses to 0\%, which \emph{saturates} the safety comparison; the informative safety result is therefore the single-model configuration (14.0\% $\rightarrow$ 3.5\%), where the classifier makes genuine errors for the agentic layer to catch. A rigorous assessment would use out-of-distribution test data -- for example field-captured smartphone images or a distinct dataset such as PlantDoc -- and a larger, class-balanced test set than the three-images-per-class used here. Second, PlantVillage images are captured under controlled, largely uniform backgrounds, a well-documented gap relative to field-captured images with cluttered backgrounds and variable lighting; the Confidence and Image-Quality Agent partially mitigates this at inference time but was not evaluated on out-of-distribution field imagery. Third, the static knowledge base covers the disease categories represented in PlantVillage but is not exhaustive of regional cultivars, co-occurring stress factors, or emerging pathogens, so the Retrieval Agent's grounding is only as complete as its underlying corpus. Fourth, the Orchestrator's confidence, margin, and agreement thresholds were set conservatively by design rather than tuned against a validation objective; a learned or calibrated routing policy, noted in Section~\ref{sec:conclusion}, may achieve a more favorable safety-cost trade-off than the fixed thresholds used here.
+Three limitations qualify these results. First, absolute classification accuracy on the out-of-distribution set is low (24.2\% for the ensemble), reflecting the substantial domain gap between PlantVillage's controlled training images and heterogeneous web-sourced photographs with cluttered backgrounds and variable lighting. The Vision Agent was reused unmodified, without any domain adaptation or fine-tuning on field data; closing this perception gap -- through domain-adaptive training or field-collected training data -- is the most direct route to improving end-to-end utility. The agentic layer mitigates the safety consequences of this gap but cannot substitute for a more robust perception module. Second, the test set is modest in size (five images per class); a larger, curated field dataset with verified labels would tighten the estimates and enable per-class error analysis. Third, the Orchestrator's confidence, margin, and agreement thresholds were set conservatively by design rather than tuned against a validation objective; the high human-intervention rate (63.2\%) is a direct consequence of this caution, and a learned or calibrated routing policy, noted in Section~\ref{sec:conclusion}, may achieve a more favorable safety-coverage trade-off than the fixed thresholds used here.
 
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
