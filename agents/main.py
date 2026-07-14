@@ -296,6 +296,18 @@ def main():
                 f"pred={decision.prediction[:30]}"
             )
 
+        # When the LLM was actually invoked (moderate tier), show its advice
+        # inline as the run proceeds, so the grounded recommendation is visible
+        # for that image rather than only in the end-of-run sample.
+        if decision.action == "retrieve_and_reason":
+            print(f"\n  >>> LLM ADVICE for {img_id}")
+            print(f"      prediction: {decision.prediction}  "
+                  f"(conf={decision.confidence:.1%}, "
+                  f"{len(decision.retrieved_doc_ids)} evidence passage(s))")
+            advice = (decision.output or "(no text returned)").strip()
+            print("      " + advice.replace("\n", "\n      "))
+            print()
+
     elapsed = time.time() - start_time
     print(f"\nCompleted {len(decisions)} images in {elapsed:.2f}s "
           f"({len(decisions)/max(elapsed, 0.001):.0f} img/s)")
