@@ -296,11 +296,11 @@ def main():
                 f"pred={decision.prediction[:30]}"
             )
 
-        # When the LLM was actually invoked (moderate tier), show its advice
-        # inline as the run proceeds, so the grounded recommendation is visible
-        # for that image rather than only in the end-of-run sample.
-        if decision.action == "retrieve_and_reason":
-            print(f"\n  >>> LLM ADVICE for {img_id}")
+        # When the LLM actually produced a grounded recommendation (either the
+        # moderate tier or a confident disease case), show its advice inline as
+        # the run proceeds, rather than only in the end-of-run sample.
+        if decision.reasoning_output:
+            print(f"\n  >>> LLM ADVICE for {img_id}  [{decision.action}]")
             print(f"      prediction: {decision.prediction}  "
                   f"(conf={decision.confidence:.1%}, "
                   f"{len(decision.retrieved_doc_ids)} evidence passage(s))")

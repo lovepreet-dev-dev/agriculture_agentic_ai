@@ -217,7 +217,21 @@ class Orchestrator:
         quality: QualityAssessment,
         image_id: str,
     ) -> OrchestratorDecision:
-        """Handle high-confidence direct diagnosis (no retrieval needed)."""
+        """Handle high-confidence disease diagnosis.
+
+        Confident disease cases still deserve a grounded, cited treatment for
+        the farmer, so when retrieval + reasoning are wired in we run the same
+        evidence-backed pipeline as the moderate tier (labelled
+        "direct_diagnosis" so the confidence-tier breakdown is preserved). When
+        retrieval is not available (Phase 1), we fall back to a generic pointer.
+        """
+        # Grounded treatment via real retrieval + LLM reasoning.
+        if self.retriever is not None and self.reasoning_agent is not None:
+            return self.retrieve_and_reason(
+                pred, image_id, action_label="direct_diagnosis"
+            )
+
+        # Fallback (no retrieval wired): generic guidance only.
         readable = _clean_class_name(pred.label)
         output = (
             f"Diagnosis: {readable} "
@@ -289,9 +303,15 @@ class Orchestrator:
     # ── Retrieval + reasoning (real when wired, stub otherwise) ──────────
 
     def retrieve_and_reason(
-        self, pred: VisionPrediction, image_id: str
+        self, pred: VisionPrediction, image_id: str,
+        action_label: str = "retrieve_and_reason",
     ) -> OrchestratorDecision:
-        """Moderate-tier handler: retrieve evidence, then reason over it.
+        """Retrieve evidence, then reason over it to produce grounded treatment.
+
+        Used by both the moderate tier and (for disease predictions) the
+        high-confidence direct tier, so that every disease diagnosis comes with
+        a grounded, cited treatment recommendation. ``action_label`` records
+        which tier invoked it so the routing breakdown stays meaningful.
 
         When a retriever + reasoning agent are wired in (Phase 3):
           1. Clean class name -> query string
@@ -319,7 +339,7 @@ class Orchestrator:
                 margin=margin,
                 agreement_ratio=pred.agreement_ratio,
                 quality_ok=True,
-                action="retrieve_and_reason",
+                action=action_label,
                 output=output,
             )
 
@@ -372,7 +392,7 @@ class Orchestrator:
             margin=margin,
             agreement_ratio=pred.agreement_ratio,
             quality_ok=True,
-            action="retrieve_and_reason",
+            action=action_label,
             output=result.recommendation,
             retrieved_doc_ids=list(getattr(result, "doc_ids", [])),
             reasoning_output=result.recommendation,
