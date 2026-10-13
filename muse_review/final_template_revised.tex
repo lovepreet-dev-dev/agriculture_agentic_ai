@@ -1,0 +1,458 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{url}
+\usepackage{array}
+\usepackage[hidelinks,breaklinks=true]{hyperref}
+\usepackage{placeins}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\dblfloatpagefraction}{0.7}
+\setcounter{dbltopnumber}{2}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Agentic AI for Plant Disease Diagnosis: An Autonomous Multi-Agent Framework Integrating Vision, Retrieval, and Reasoning}
+
+\author{
+\IEEEauthorblockN{Lovepreet Sharma}
+\IEEEauthorblockA{Department of Information Technology \\
+Dr BR Ambedkar National Institute of Technology \\
+Jalandhar, Punjab, India \\
+lovepreets.da.25@nitj.ac.in}
+\and
+\IEEEauthorblockN{Mithilesh Tiwari}
+\IEEEauthorblockA{Department of Information Technology \\
+Dr BR Ambedkar National Institute of Technology \\
+Jalandhar, Punjab, India \\
+mithlisht.da.25@nitj.ac.in}
+\and
+\IEEEauthorblockN{Dr. Jaspal Kaur Saini}
+\IEEEauthorblockA{Department of Information Technology \\
+Dr BR Ambedkar National Institute of Technology \\
+Jalandhar, Punjab, India \\
+{}saini@nitj.ac.in}
+}
+
+\maketitle
+
+\begin{abstract}
+Automated plant disease detection using convolutional neural networks has achieved strong classification accuracy on benchmark datasets such as PlantVillage, yet a standalone classifier provides only a label and a confidence score: it offers no explanation, no differential reasoning over plausible alternatives, and no mechanism to defer uncertain cases to a human expert. This paper presents an agentic artificial intelligence framework that wraps a ResNet-18 vision classifier with four cooperating agents -- a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator -- to convert disease classification into an autonomous, explainable, and safety-aware diagnostic advisory system. The Orchestrator grounds every actionable disease diagnosis in retrieved evidence, producing a cited treatment recommendation via the Reasoning Agent, while skipping this computation for healthy plants (which need no treatment) and escalating low-confidence, low-quality, or ambiguous inputs directly to human review rather than acting on them; prediction confidence and class ambiguity govern whether a recommendation is issued directly or accompanied by explicit caveats and alternatives. We evaluate the system using both conventional classification metrics and a set of agentic metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- that quantify the safety-utility trade-off of autonomous deferral relative to a naive always-trust-the-classifier baseline. Evaluation is deliberately conducted on an out-of-distribution test set of 190 leaf images collected from sources outside the PlantVillage training corpus, spanning all 38 classes, so that the reported numbers reflect generalization rather than in-distribution recall. Under this realistic distribution shift the classifiers, which reach near-perfect accuracy (up to 100\%) on in-distribution same-source images, generalize far more weakly -- individual models reach 20.5--23.2\% top-1 accuracy and a three-model federated ensemble (FedAvg, FedOpt, FedMA) reaches 24.2\% -- yet it is exactly here that the agentic layer proves its worth: for the ensemble it reduces the harmful-action rate from a naive always-act baseline of 75.8\% to 14.2\%, a roughly five-fold reduction, at a human-intervention rate of 63.2\%, by recognizing its own uncertainty and deferring unreliable cases to a human. These results, under a bounded-autonomy human-in-the-loop envelope where unreliable cases are escalated rather than acted upon, support agent-orchestrated pipelines as a practical bridge between imperfect vision models and trustworthy, deployable agricultural decision support.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Agentic AI, Plant Disease Detection, Retrieval-Augmented Generation, Multi-Agent Systems, PlantVillage, ResNet-18, Precision Agriculture, Autonomous Decision-Making
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+
+Plant diseases remain among the largest threats to global food security, with crop losses attributable to pests and pathogens estimated to reduce yields by 20--40\% annually across major staple crops. Early and accurate diagnosis is the single most effective lever for limiting this loss, since most fungicide and cultural interventions are far more effective when applied before a disease reaches an advanced stage. The introduction of large, labeled image datasets such as PlantVillage \cite{r_hughes2015}, together with deep convolutional architectures, has made it possible to train classifiers that recognize dozens of crop-disease categories from a single leaf photograph with accuracy exceeding 95\% on held-out benchmark data \cite{r_mohanty2016}.
+
+Despite this accuracy, a bare classifier is a narrow, reactive tool in the sense described by the broader agentic AI literature \cite{b1,b9}: it consumes an image and returns a label and a softmax score, with no capacity to explain \emph{why} a diagnosis was reached, no mechanism to weigh alternative diagnoses when the image is ambiguous, and -- most critically for a system whose output may drive real pesticide use -- no way to recognize its own uncertainty and defer to a human expert. A classifier that is wrong 5\% of the time will, if deployed naively, confidently recommend the wrong treatment in exactly those 5\% of cases, with no distinguishing signal to separate them from the 95\% it gets right.
+
+Agentic artificial intelligence -- systems characterized by autonomy, goal-directed behavior, tool use, and the capacity to plan multi-step actions in response to their environment -- has been proposed as a paradigm for exactly this class of problem across domains such as healthcare, energy management, and climate modeling \cite{b1,b3,b6,b13,b14}. Reviews of agentic AI applications have surveyed its use extensively in these areas \cite{b2,b5,b10}, yet its application to agricultural disease diagnosis as a safety-aware decision-support agent exercising bounded autonomy has received comparatively little attention. Existing plant-disease work overwhelmingly frames the problem as pure image classification, leaving the reasoning, retrieval, and deferral behavior that would make such a system trustworthy for real-world deployment largely unaddressed.
+
+This paper closes that gap. We present an agentic architecture that reuses a trained plant-disease classifier as a perception module and wraps it with four cooperating agents that together transform a single-shot classification into an autonomous diagnostic workflow. The specific contributions of this paper are:
+
+\begin{enumerate}
+\item We propose and implement a five-component agentic architecture -- Vision, Confidence/Quality, Retrieval, Reasoning, and Orchestrator -- that upgrades a standard CNN plant-disease classifier into an autonomous diagnostic advisory agent.
+\item We design an orchestration policy that grounds every actionable disease diagnosis in retrieved evidence and uses prediction confidence and class ambiguity to decide whether the resulting recommendation is issued directly or accompanied by explicit caveats and alternatives, while escalating low-confidence, ambiguous, or low-quality inputs to a human rather than acting on them. Retrieval and reasoning are skipped only where they add no value: for healthy plants and for escalated cases.
+\item We introduce a set of agentic evaluation metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- that capture the safety-utility trade-off of an autonomous diagnostic system in a way that classification accuracy alone cannot.
+\item We report an empirical evaluation of the complete pipeline on the PlantVillage benchmark, quantifying the reduction in harmful-action rate achieved relative to a naive classifier-only baseline.
+\end{enumerate}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews the foundations of agentic AI and positions this work relative to prior plant-disease classification research. Section~\ref{sec:arch} describes the proposed multi-agent architecture. Section~\ref{sec:impl} details the implementation. Section~\ref{sec:exp} defines the experimental protocol and metrics. Section~\ref{sec:results} reports results, and Section~\ref{sec:conclusion} concludes with directions for future work.
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Foundations of Agentic AI}
+Agentic AI refers to systems designed with autonomy, goal-directed behavior, and the capacity to take initiative, moving beyond passive tools that only respond to prompts \cite{b1,b9}. Four capabilities are commonly identified as its foundation. \emph{Reinforcement learning} provides a framework for sequential decision-making under reward and penalty, prioritizing experiential learning over supervised label-fitting \cite{r1}. \emph{Goal-oriented architectures} give an agent explicit objectives against which it can plan and prioritize actions, integrating symbolic reasoning and planning with learned components \cite{r2,b11}. \emph{Autonomous decision-making} is the capacity to evaluate options and act without continuous human supervision, underpinned by perception, reasoning, and action-selection mechanisms \cite{b12}. \emph{Environment interaction} closes the loop: an agent perceives state, updates an internal model, and takes actions that alter its environment, enabling adaptation to conditions that were not seen during training \cite{b4}.
+
+A closely related concept is agentic memory, commonly decomposed into procedural, short-term, long-term, episodic, and semantic memory \cite{b1}. Procedural memory stores reusable action sequences; short-term memory holds task-local context; long-term and semantic memory persist facts and preferences across sessions; and episodic memory records specific past interactions to inform future behavior. As detailed in Section~\ref{sec:arch}, the present system deliberately implements only the semantic-memory component required for retrieval-augmented reasoning, treating persistent episodic memory and longitudinal disease tracking as a scoped future extension (Section~\ref{sec:conclusion}) rather than a claim made in the current implementation.
+
+\subsection{Traditional versus Agentic AI}
+Table~\ref{tab:comparison} summarizes the distinction between the traditional classification paradigm that dominates existing plant-disease literature and the agentic paradigm adopted in this work. The key shift is from a system that is reactive and provides a single output, to one that is proactive, reasons over multiple candidate outcomes, and can decline to act.
+
+\begin{table}[t]
+\centering
+\caption{Traditional AI versus Agentic AI}
+\label{tab:comparison}
+\small
+\begin{tabular}{p{1.6cm}p{2.7cm}p{2.9cm}}
+\toprule
+\textbf{Aspect} & \textbf{Traditional AI} & \textbf{Agentic AI (this work)} \\
+\midrule
+Output & Label + confidence score & Diagnosis, grounded explanation, treatment, and a deferral decision \\
+Initiative & Reactive; always emits a prediction & Proactive; may withhold action and request human review \\
+Reasoning & Single forward pass & Multi-step: perceive, assess, retrieve, reason, act \\
+Uncertainty handling & None; wrong predictions are indistinguishable from correct ones & Explicit confidence and ambiguity gating via the Orchestrator \\
+Explanation & None & Retrieved-passage-grounded justification \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table*}[!t]
+\centering
+\caption{Comparison of representative related studies. Sounkhla et al.\ \cite{r_sounkhla2026} is included as a complementary vision-backbone that is substitutable for the Vision Agent.}
+\label{tab:related_work_summary}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{p{2.0cm}p{2.8cm}p{3.2cm}p{4.0cm}p{3.5cm}}
+\toprule
+\textbf{Study} & \textbf{Method / scope} & \textbf{Dataset or setting} & \textbf{Reported result} & \textbf{Limitation relative to this work} \\
+\midrule
+Mohanty et al.\ \cite{r_mohanty2016} & AlexNet and GoogLeNet for plant-disease classification & PlantVillage \cite{r_hughes2015}: 54{,}306 leaf images, 14 crop species, 38 classes & 99.35\% held-out; $\sim$31\% on web images & No deferral/reasoning; limited generalization \\
+He et al.\ \cite{r_he2016} & Deep residual learning with identity shortcuts & ImageNet, MS COCO & ResNet-152 3.57\% top-5 error & General vision backbone; no agentic routing \\
+Lewis et al.\ \cite{r_lewis2020} & Retrieval-augmented generation & NQ, TriviaQA, WebQ, FEVER & RAG-Sequence EM 44.5 (NQ) & NLP system; not agricultural \\
+Acharya et al.\ \cite{b1} & Survey of agentic-AI concepts & Literature survey & Identifies autonomy, memory, tool use, safety & No agricultural implementation \\
+Bandi et al.\ \cite{b2} & Review of agentic-AI frameworks/metrics & Literature review & Taxonomy of latency, trust, planning & Broad survey without experiments \\
+Hosseini and Seilani \cite{b6} & Systematic review of autonomous systems & Literature review & Discusses reactivity, proactivity, ethics & No agricultural benchmark \\
+Sounkhla et al.\ \cite{r_sounkhla2026} & ResNet-Transformer hybrid for apple leaf diseases & Apple leaf disease set & Transformer-augmented classification & Vision backbone only; no retrieval/reasoning/deferral — substitutable backbone for Vision Agent \\
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\end{table*}
+
+Table~\ref{tab:related_work_summary} compares representative studies spanning plant-disease classification, retrieval-augmented generation, and agentic AI, now including the recent ResNet-Transformer hybrid \cite{r_sounkhla2026}. The comparison highlights that individual components have been studied extensively, whereas their integration into a safety-aware diagnostic workflow remains limited. Sounkhla et al.\ is a complementary backbone improvement — it could replace the ResNet-18 in the Vision Agent without altering the agentic layer.
+
+\subsection{Deep Learning for Plant Disease Detection}
+The PlantVillage dataset \cite{r_hughes2015} and the benchmark results of Mohanty et al.\ \cite{r_mohanty2016} established convolutional neural networks as the dominant approach for image-based plant disease diagnosis, with subsequent work exploring deeper backbones, transfer learning, and federated training across distributed agricultural data sources. This body of work optimizes exclusively for classification accuracy; none of it, to our knowledge, addresses the downstream question of \emph{what an automated system should do} with a prediction once it is made -- whether to act on it, explain it, or defer it -- which is the problem this paper addresses.
+
+\subsection{Agentic AI in Agriculture}
+Surveys of agentic AI applications have covered healthcare \cite{b11,b1}, finance, cybersecurity, and climate and energy management in considerable depth \cite{b2,b6,b13}, documenting autonomous agents that monitor, plan, and act with limited human oversight in each of these domains. Agriculture is frequently listed as a target domain for agentic AI in these broader surveys, typically in connection with resource optimization, irrigation scheduling, or supply-chain management at the farm or regional level. However, at the level of an individual diagnostic interaction between a farmer, a leaf photograph, and a recommended treatment, the literature remains dominated by single-model image classifiers. The architecture proposed in this paper is, to our knowledge, among the first to apply the full agentic pattern -- perception, uncertainty-aware reasoning, tool-augmented retrieval, and autonomous deferral -- to this specific and consequential diagnostic setting, where an incorrect autonomous recommendation carries a direct economic and food-security cost.
+
+\subsection{Retrieval-Augmented Generation}
+Retrieval-augmented generation (RAG) couples a language model with a non-parametric retrieval step over an external corpus, grounding generated text in retrieved evidence rather than relying solely on parametric knowledge \cite{r_lewis2020}. This mechanism is well suited to diagnostic explanation, where the treatment and prevention advice given to a farmer should be traceable to an authoritative agricultural source rather than generated from the language model's unverified prior knowledge. Section~\ref{sec:arch} describes how this work employs RAG as the semantic-memory substrate for the Reasoning Agent.
+
+\section{Proposed System Architecture}
+\label{sec:arch}
+
+The system is composed of five cooperating components: a Vision Agent, a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator that governs control flow between them. Fig.~\ref{fig:arch} illustrates the architecture and the two execution paths the Orchestrator can select.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm and 8mm,
+  box/.style={draw, rounded corners, minimum width=2.5cm, minimum height=0.8cm, align=center, font=\scriptsize, fill=blue!6},
+  decision/.style={draw, diamond, aspect=2.2, minimum width=2.4cm, align=center, font=\scriptsize, fill=orange!10},
+  term/.style={draw, rounded corners, minimum width=2.2cm, minimum height=0.7cm, align=center, font=\scriptsize, fill=green!10},
+  arrow/.style={-Stealth, thin}
+]
+\node[box] (img) {Leaf Image};
+\node[box, below=of img] (vision) {Vision Agent\\ (ResNet-18)};
+\node[box, below=of vision] (conf) {Confidence \&\\ Quality Agent};
+\node[decision, below=of conf] (orch) {Orchestrator};
+\node[box, below left=8mm and -2mm of orch] (retrieval) {Retrieval Agent\\ (RAG)};
+\node[box, below=of retrieval] (reason) {Reasoning Agent\\ (LLM)};
+\node[term, below right=8mm and -6mm of orch] (human) {Human Expert\\ Review};
+\node[term, below=of reason] (out) {Diagnosis +\\ Recommendation};
+
+\draw[arrow] (img) -- (vision);
+\draw[arrow] (vision) -- (conf);
+\draw[arrow] (conf) -- (orch);
+\draw[arrow] (orch) -- node[left, font=\tiny]{moderate/low margin} (retrieval);
+\draw[arrow] (retrieval) -- (reason);
+\draw[arrow] (reason) -- (out);
+\draw[arrow] (orch) -- node[right, font=\tiny]{low conf. / bad quality} (human);
+\draw[arrow] (orch.east) .. controls +(1.6,0) and +(1.6,-1.4) .. node[right, font=\tiny]{high conf. \& margin} (out.east);
+\end{tikzpicture}
+\caption{Proposed agentic architecture. The Orchestrator conditionally routes each case to a fast direct-answer path, the full retrieval-and-reasoning path, or human escalation.}
+\label{fig:arch}
+\end{figure}
+
+\subsection{Vision Agent}
+The Vision Agent maps an input leaf image to a probability distribution over the PlantVillage disease taxonomy using one or more ResNet-18 convolutional networks \cite{r_he2016}. The backbones are reused from our prior federated learning study on plant disease classification, in which they were trained across simulated clients under a non-IID partition of the training data. The system supports two configurations: a single ResNet-18, and an ensemble of three ResNet-18 checkpoints produced by distinct federated aggregation strategies -- Federated Averaging (FedAvg), Federated Optimization (FedOpt), and Federated Matched Averaging (FedMA) -- whose softmax distributions are averaged. The ensemble additionally yields an \emph{agreement ratio}: the fraction of member models whose individual top-1 prediction matches the averaged ensemble label. This serves as a model-based uncertainty signal complementary to the softmax confidence, since independently trained models can diverge on a hard case even when the averaged confidence is high. In the present system the Vision Agent is used purely as a perception module: it emits the predicted label, the full class-probability distribution, and -- in ensemble mode -- the agreement ratio, all of which are passed to the next agent.
+
+\subsection{Confidence and Image-Quality Agent}
+This agent performs lightweight, non-parametric post-processing on the Vision Agent's output and on the input image itself, producing a structured reliability signal rather than a new prediction. Up to four quantities are computed: (i) \emph{confidence}, the top-1 softmax probability; (ii) \emph{margin}, the gap between the top-1 and top-2 class probabilities, which captures ambiguity between visually similar diseases that raw confidence alone can miss; (iii) a binary \emph{quality flag}, derived from a Laplacian-variance blur check and a brightness-range check on the input image, to catch cases where the image itself -- rather than the disease -- is the source of uncertainty; and (iv) when the Vision Agent runs as an ensemble, the \emph{agreement ratio} propagated from it, which flags cases where independently trained models disagree even if the averaged confidence is high. These signals are passed to the Orchestrator as a single structured object.
+
+\subsection{Retrieval Agent}
+The Retrieval Agent implements retrieval-augmented generation over a static knowledge base curated from publicly available agricultural extension and plant-pathology reference material, covering the crops and diseases represented in the PlantVillage taxonomy. Each reference document is embedded and indexed for dense semantic retrieval. Given a predicted disease label (and, when the margin is low, its runner-up candidate), the Retrieval Agent returns the top-$k$ most relevant passages, which serve as grounding evidence for the Reasoning Agent. This agent is invoked only when the Orchestrator determines that a case warrants full reasoning, rather than on every prediction.
+
+\subsection{Reasoning Agent}
+The Reasoning Agent is a large language model prompted with the predicted label, its confidence and margin, and the passages returned by the Retrieval Agent. It produces three outputs: (i) a diagnosis statement identifying the most likely disease and, when margin is low, up to two plausible alternatives; (ii) an explanation that is required to cite which retrieved passage supports each factual claim, so that the output can be checked for grounding rather than accepted as an unverifiable model assertion; and (iii) a treatment and prevention recommendation drawn from the retrieved evidence rather than generated from unverified parametric knowledge.
+
+\subsection{Orchestrator}
+The Orchestrator is the component that makes the system agentic rather than a fixed pipeline: it decides, per case, which of the other agents to invoke. Its policy is summarized in Table~\ref{tab:policy}. Healthy predictions bypass retrieval and reasoning entirely and are answered with a monitoring advisory, since no treatment is required -- a fast path that minimizes latency and inference cost. Every disease diagnosis, by contrast, is grounded through the full retrieval-and-reasoning pipeline so that the farmer receives an evidence-cited treatment recommendation: high-confidence, high-margin cases are returned as a direct grounded recommendation, whereas moderate-confidence or low-margin cases run the same pipeline but surface explicit alternative diagnoses and caveats reflecting the lower certainty. Low-confidence or low-quality cases are escalated directly to human review without any automated treatment recommendation being issued, since an automated system should not offer possibly harmful advice under conditions where it cannot support that advice. In ensemble mode, heavy disagreement among the member models (agreement ratio below a threshold) is treated as an additional escalation trigger, since divergence between independently trained models is itself evidence that the case is unreliable, even when the averaged softmax confidence is high.
+
+\begin{table}[t]
+\centering
+\caption{Orchestrator Routing Policy}
+\label{tab:policy}
+\small
+\begin{tabular}{p{3.6cm}p{3.6cm}}
+\toprule
+\textbf{Condition} & \textbf{Action} \\
+\midrule
+Healthy prediction & Monitoring advisory; retrieval and reasoning skipped (no treatment needed) \\
+Disease, high confidence, high margin, model agreement, good image quality & Full pipeline: retrieval $\rightarrow$ reasoning $\rightarrow$ direct grounded, evidence-cited treatment \\
+Disease, moderate confidence, or low margin, good image quality & Full pipeline: same grounded recommendation, with explicit alternatives and caveats \\
+Low confidence, poor image quality, or heavy model disagreement & Escalate to human expert; no automated recommendation issued \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Algorithm~\ref{alg:orch} formalizes this routing logic.
+
+\begin{algorithm}[t]
+\caption{Orchestrator Routing Policy}
+\label{alg:orch}
+\begin{algorithmic}[1]
+\REQUIRE image $x$; thresholds $\tau_{high}=0.85$, $\tau_{low}=0.55$, $\tau_{margin}=0.15$, $\tau_{agree}=0.5$
+\STATE $\hat{y}, p, a \leftarrow \text{VisionAgent}(x)$ \COMMENT{label, softmax vector, agreement ratio}
+\STATE $c \leftarrow \max(p)$; \ $m \leftarrow p_{(1)} - p_{(2)}$ \COMMENT{confidence, margin}
+\STATE $q \leftarrow \text{QualityCheck}(x)$ \COMMENT{blur / brightness check}
+\IF{$\hat{y}$ is healthy}
+    \STATE \textbf{return} HealthyAdvisory($\hat{y}$) \COMMENT{no treatment; skip retrieval \& reasoning}
+\ELSIF{$c < \tau_{low}$ \OR $a < \tau_{agree}$ \OR $q \neq \text{good}$}
+    \STATE \textbf{return} EscalateToHuman($x, \hat{y}, c, q, a$)
+\ELSE
+    \STATE $D \leftarrow \text{RetrievalAgent}(\hat{y})$ \COMMENT{ground every disease diagnosis}
+    \STATE $r \leftarrow \text{ReasoningAgent}(\hat{y}, c, m, D)$
+    \IF{$c \geq \tau_{high}$ \AND $m \geq \tau_{margin}$ \AND $a = 1$}
+        \STATE \textbf{return} DirectDiagnosis($r$) \COMMENT{confident grounded recommendation}
+    \ELSE
+        \STATE \textbf{return} CautionedDiagnosis($r$) \COMMENT{grounded, with alternatives/caveats}
+    \ENDIF
+\ENDIF
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Scope: Memory and Longitudinal Tracking}
+An episodic Memory Agent that logs each diagnosis and a Follow-up Agent that requests a subsequent image to track disease progression over time are natural extensions of this architecture, consistent with the long-term and episodic memory categories discussed in Section~\ref{sec:related}. We deliberately scope them out of the present implementation, both because they require longitudinal image data not available in the PlantVillage benchmark and to keep the system within a tractable, rigorously evaluable footprint; they are discussed further as future work in Section~\ref{sec:conclusion}.
+
+\section{Implementation Details}
+\label{sec:impl}
+
+\textbf{Dataset.} We use the PlantVillage dataset \cite{r_hughes2015}, comprising leaf images spanning multiple crop species and disease categories, split into training, validation, and held-out test partitions consistent with our prior federated learning experiments on this dataset.
+
+\textbf{Vision backbone.} ResNet-18 \cite{r_he2016} is reused unmodified from prior work; no retraining was performed for this study, isolating the evaluation to the contribution of the agentic layer. We evaluate two Vision Agent configurations: a single FedAvg-trained checkpoint, and a three-model ensemble that combines checkpoints trained with FedAvg, FedOpt, and FedMA aggregation by averaging their softmax outputs. All three checkpoints share the same 38-class ResNet-18 architecture and differ only in their federated aggregation strategy.
+
+\textbf{Orchestrator thresholds.} The high-confidence, low-confidence, and margin thresholds are configured at 0.85, 0.55, and 0.15 respectively; in ensemble mode, an agreement-ratio threshold of 0.5 additionally escalates cases on which the member models substantially disagree. The thresholds are selected to bias the system toward caution: cases are escalated rather than acted upon whenever confidence, margin, or inter-model agreement falls outside a conservative operating range.
+
+\textbf{Retrieval index.} Reference documents are chunked and embedded with the \texttt{bge-small-en-v1.5} sentence-embedding model and indexed in a FAISS vector store for cosine-similarity retrieval; the Retrieval Agent returns the top-$k$ ($k=5$) passages per query.
+
+\textbf{Reasoning model.} The Reasoning Agent is implemented with an instruction-tuned large language model accessed through an OpenAI-compatible API via a provider-agnostic wrapper, so that the model can be swapped without changing the rest of the system. It is prompted with a fixed template requiring passage-grounded citation for every factual claim in its output and instructed to decline to recommend a treatment that the retrieved evidence does not support.
+
+\textbf{Knowledge base.} The static reference corpus underlying the Retrieval Agent comprises 125 curated documents drawn from open-access PubMed Central articles and agricultural extension / plant-pathology reference material, covering symptoms, causal pathogens, and management practices for the crop-disease categories present in the PlantVillage taxonomy. Chunking and embedding each document independently yields 16{,}706 indexed passage chunks, allowing the Retrieval Agent to return passage-level rather than document-level evidence to the Reasoning Agent.
+
+\textbf{Episodic logging.} Every case processed by the Orchestrator, together with its routing decision and downstream output, is logged in a structured record. This log is used for offline evaluation (Section~\ref{sec:exp}) and, as discussed in Section~\ref{sec:conclusion}, forms the basis on which a full episodic Memory Agent could be built in future work.
+
+\section{Experimental Setup}
+\label{sec:exp}
+
+We evaluate the system under three test conditions of increasing distribution shift from the training data. The \emph{in-distribution} set (114 images, three per class across all 38 crop-disease categories) is held out from the same PlantVillage source used to train the backbones. The \emph{mixed} set (190 images, five per class) combines three in-distribution PlantVillage images with two out-of-distribution web images per class, approximating a realistic deployment mix in which some inputs resemble the training distribution and others do not. The \emph{out-of-distribution (OOD)} set (190 images, five per class) consists entirely of leaf images collected from public web sources outside the PlantVillage dataset, deliberately measuring generalization under heterogeneous, uncontrolled photographic conditions rather than in-distribution recall. We report results for each individual model (FedAvg, FedOpt, FedMA) and for the three-model ensemble on all three sets, using two families of metrics.
+
+\textbf{Classification metrics.} Top-1 accuracy and macro-averaged F1 score of the Vision Agent in isolation, to establish the baseline perceptual performance the agentic layer builds upon.
+
+\textbf{Agentic metrics.} For each test case, let the system's action be either \emph{act} (issue a treatment recommendation, whether as a direct grounded diagnosis or a cautioned one) or \emph{escalate} (defer to a human). We define:
+\begin{align}
+\text{Correct-action rate} &= \frac{|\{\,\text{act} \wedge \hat{y}=y\,\}|}{N} \\
+\text{Harmful-action rate} &= \frac{|\{\,\text{act} \wedge \hat{y}\neq y\,\}|}{N} \\
+\text{Human-intervention rate} &= \frac{|\{\,\text{escalate}\,\}|}{N}
+\end{align}
+where $\hat{y}$ is the predicted label, $y$ is the ground-truth label, and $N$ is the number of test cases. We additionally report the \emph{naive baseline harmful-action rate}, defined as the classifier's raw error rate under a policy that always acts regardless of confidence -- equivalent to deploying the Vision Agent alone without any orchestration. The reduction from this baseline to the agentic harmful-action rate is the primary indicator of the value added by the Confidence/Quality Agent and Orchestrator.
+
+\textbf{Grounding check.} On the reasoning outputs from cases routed through the full pipeline, we qualitatively inspect whether cited factual claims are supported by the retrieved passages they reference and whether the agent declines to recommend treatments that the evidence does not contain. A formal, large-scale grounding annotation with inter-annotator agreement is left to future work.
+
+\textbf{Retrieval coverage.} We additionally measure retrieval coverage as the fraction of the 38 classes for which the knowledge base returns at least one strongly relevant passage (cosine similarity $\geq 0.75$) when queried by class name.
+
+\section{Results and Discussion}
+\label{sec:results}
+
+We evaluate on three test sets spanning increasing distribution shift: an in-distribution set drawn from the same PlantVillage source used to train the backbones (Table~\ref{tab:results_id}), a mixed set combining in-distribution and web images (Table~\ref{tab:results_mixed}), and an out-of-distribution set of purely web-sourced images (Table~\ref{tab:results_ood}). All three are reported for each individual model and for the three-model ensemble. The safety tables (Tables~\ref{tab:results_id}--\ref{tab:results_ood}) are scored per Eqs.~(1)--(3) against the naive classifier-only baseline. Fig.~\ref{fig:gap} visualizes the accuracy trend across all three settings, and Fig.~\ref{fig:safety} the safety improvement of the agentic layer under out-of-distribution shift.
+
+\begin{table}[t]
+\centering
+\caption{In-distribution results on held-out PlantVillage images (114 images, three per class across 38 classes). All values are percentages; best in each column in bold. These numbers are a ceiling reference and largely reflect memorization of the training distribution (see text).}
+\label{tab:results_id}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Config} & \textbf{Acc} & \textbf{F1} & \textbf{Corr.} & \textbf{Harm.} & \textbf{Naive} & \textbf{Interv.} \\
+\midrule
+FedAvg & \textbf{100.0} & \textbf{100.0} & \textbf{99.1} & \textbf{0.0} & 0.0 & \textbf{0.9} \\
+FedOpt & 95.6 & 95.3 & 97.4 & 0.9 & 4.4 & 3.5 \\
+FedMA & 86.0 & 82.8 & 87.7 & 3.5 & 14.0 & 17.5 \\
+\textbf{Ensemble} & \textbf{100.0} & \textbf{100.0} & 97.4 & \textbf{0.0} & 0.0 & 2.6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Mixed-distribution results (190 images, five per class: three in-distribution PlantVillage images plus two out-of-distribution web images per class). All values are percentages; best in each column in bold.}
+\label{tab:results_mixed}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Config} & \textbf{Acc} & \textbf{F1} & \textbf{Corr.} & \textbf{Harm.} & \textbf{Naive} & \textbf{Interv.} \\
+\midrule
+FedAvg & 67.9 & 70.9 & \textbf{86.8} & 11.1 & 32.1 & 15.8 \\
+FedOpt & 66.3 & 68.7 & 85.8 & 10.5 & 33.7 & 20.5 \\
+FedMA & 61.1 & 60.0 & 82.1 & \textbf{6.8} & 38.9 & 38.9 \\
+\textbf{Ensemble} & \textbf{68.4} & \textbf{71.1} & \textbf{86.8} & \textbf{6.8} & \textbf{31.6} & 28.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Out-of-distribution results on web-sourced images (190 images, five per class across 38 classes). All values are percentages; best in each column in bold.}
+\label{tab:results_ood}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+\textbf{Config} & \textbf{Acc} & \textbf{F1} & \textbf{Corr.} & \textbf{Harm.} & \textbf{Naive} & \textbf{Interv.} \\
+\midrule
+FedAvg & 20.5 & 17.4 & 72.1 & 24.2 & 79.5 & 41.1 \\
+FedOpt & 23.2 & \textbf{20.4} & 70.5 & 22.6 & 76.8 & 44.7 \\
+FedMA & 21.6 & 15.4 & 72.1 & 15.3 & 78.4 & 67.4 \\
+\textbf{Ensemble} & \textbf{24.2} & 20.3 & \textbf{74.7} & \textbf{14.2} & \textbf{75.8} & 63.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Generalization gap.} On the in-distribution PlantVillage images (Table~\ref{tab:results_id}) the models score very high -- 86.0--100\% top-1 accuracy for individual models and 100\% for the ensemble. These same-source numbers, however, largely reflect memorization of the training distribution rather than field-relevant recognition, and we report them only as a ceiling. Accuracy declines monotonically as the test distribution shifts further from training, illustrated in Fig.~\ref{fig:gap}: on the mixed set (Table~\ref{tab:results_mixed}, three in-distribution and two out-of-distribution images per class) accuracy falls to an intermediate 61.1--67.9\% for individual models and 68.4\% for the ensemble, and on the purely out-of-distribution web images (Table~\ref{tab:results_ood}) it drops further still, to 20.5--23.2\% for individual models and 24.2\% for the ensemble -- roughly a four-to-five-fold gap relative to the in-distribution ceiling. This decline is expected -- the backbones were trained on PlantVillage's controlled, uniform-background images and are here confronted with an increasing proportion of heterogeneous web photographs -- and it makes the mixed and out-of-distribution sets realistic stress cases for autonomous deployment rather than a saturated benchmark. The mixed set in particular approximates a plausible real-world scenario in which a deployed system encounters a blend of easy, training-like inputs and harder, unfamiliar ones.
+
+\textbf{Value of the agentic layer.} It is precisely under distribution shift that the safety contribution of the agentic layer is most visible, and its magnitude scales with the severity of the shift. On the mixed set, a naive policy that acts on every prediction would issue harmful (incorrect) treatment advice on 31.6--38.9\% of cases; the agentic pipeline reduces this to 6.8--11.1\%, and for the ensemble specifically from 31.6\% to 6.8\% -- a roughly 4.6-fold reduction -- at a human-intervention rate of 28.4\%. On the purely out-of-distribution set the naive harmful-action rate is far higher, 75.8--79.5\%, and the agentic pipeline reduces it to 14.2--24.2\% (14.2\% for the ensemble, a roughly five-fold reduction) at a human-intervention rate of 63.2\%. In both cases the mechanism is the same: the Orchestrator recognizes low confidence, low margin, or model disagreement and defers those cases to a human rather than issuing a likely-wrong recommendation. The higher intervention rate under heavier distribution shift is the intended safety-coverage trade-off -- as the perception module becomes less reliable, the system correctly withholds more automated advice rather than acting on it.
+
+\textbf{Single model versus ensemble.} The three-model ensemble matches or dominates every individual model on the safety-relevant metrics across all three test conditions. On the out-of-distribution set it achieves the highest accuracy (24.2\%) and correct-action rate (74.7\%) and the lowest harmful-action rate (14.2\%); on the mixed set it likewise attains the highest accuracy (68.4\%) and macro-F1 (71.1\%) and ties FedMA for the lowest harmful-action rate (6.8\%), while also tying FedAvg for the highest correct-action rate (86.8\%). Beyond accuracy, ensembling supplies an independent uncertainty signal from inter-model disagreement: the three members disagreed on 78 of the 190 mixed-set images and 143 of the 190 out-of-distribution images, with the disagreement channel catching one confident error on the out-of-distribution set that confidence thresholding alone would have missed. Ensembling therefore improves both raw perception and the reliability of the deferral decision, and its advantage is most pronounced precisely where the perception task is hardest.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=4.6cm,
+    ybar, bar width=6pt,
+    enlarge x limits=0.18,
+    ymin=0, ymax=115,
+    ylabel={Top-1 accuracy (\%)},
+    ylabel style={font=\small},
+    symbolic x coords={FedAvg,FedOpt,FedMA,Ensemble},
+    xtick=data, x tick label style={font=\small},
+    legend style={at={(0.5,-0.20)}, anchor=north, legend columns=-1, font=\small},
+    nodes near coords, every node near coord/.append style={font=\tiny, rotate=90, anchor=west},
+    ymajorgrids=true,
+]
+\addplot coordinates {(FedAvg,100.0)(FedOpt,95.6)(FedMA,86.0)(Ensemble,100.0)};
+\addplot coordinates {(FedAvg,67.9)(FedOpt,66.3)(FedMA,61.1)(Ensemble,68.4)};
+\addplot coordinates {(FedAvg,20.5)(FedOpt,23.2)(FedMA,21.6)(Ensemble,24.2)};
+\legend{In-distribution, Mixed, Out-of-distribution}
+\end{axis}
+\end{tikzpicture}
+\caption{Generalization gap: top-1 accuracy on in-distribution PlantVillage images, a mixed set combining in- and out-of-distribution images, and purely out-of-distribution web images, per configuration. Accuracy declines monotonically as the test distribution shifts further from training, exposing the reliance of raw accuracy on the training distribution.}
+\label{fig:gap}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\columnwidth, height=4.6cm,
+    ybar, bar width=6pt,
+    enlarge x limits=0.18,
+    ymin=0, ymax=95,
+    ylabel={Harmful-action rate (\%)},
+    ylabel style={font=\small},
+    symbolic x coords={FedAvg,FedOpt,FedMA,Ensemble},
+    xtick=data, x tick label style={font=\small},
+    legend style={at={(0.5,-0.20)}, anchor=north, legend columns=-1, font=\small},
+    nodes near coords, every node near coord/.append style={font=\tiny},
+    ymajorgrids=true,
+]
+\addplot coordinates {(FedAvg,79.5)(FedOpt,76.8)(FedMA,78.4)(Ensemble,75.8)};
+\addplot coordinates {(FedAvg,24.2)(FedOpt,22.6)(FedMA,15.3)(Ensemble,14.2)};
+\legend{Naive always-act baseline, Agentic system}
+\end{axis}
+\end{tikzpicture}
+\caption{Safety improvement on out-of-distribution data: the fraction of cases receiving harmful (incorrect) automated advice under a naive always-act policy versus the agentic system, which defers uncertain cases to a human. The agentic layer cuts harmful actions three- to five-fold across all configurations.}
+\label{fig:safety}
+\end{figure}
+
+\textbf{Grounding and coverage.} Retrieval coverage is complete: all 38 classes return strongly relevant passages from the knowledge base. Qualitative inspection of the full-pipeline reasoning outputs found that they cite specific retrieved passages for their factual claims and, when the retrieved evidence described symptoms but lacked management guidance, the Reasoning Agent declined to fabricate a treatment and instead recommended expert consultation -- the intended hallucination-averse behavior. Because the Orchestrator skips retrieval and reasoning for healthy plants and for escalated cases, the language model is invoked only for the disease diagnoses where a grounded treatment is actually actionable, incurring lower average inference cost than a design that reasons over every input, though a full latency comparison is left for future work.
+
+
+\textbf{Statistical robustness.} Wilson 95\% confidence intervals (CIs) bracket each rate: PlantVillage ($N=114$) accuracy 100\% has CI 96.7--100\%, OOD ($N=190$) accuracies have CI width $\sim\pm6$--7 points, so ensemble vs single-model OOD differences (20.5--24.2\%) are not statistically distinguishable at this sample size (CIs overlap). Harmful-action rate reductions are robust: on OOD, ensemble naive baseline 75.8\% [69.1--81.5\%] vs agentic 14.2\% [9.9--20.0\%] have non-overlapping CIs; on mixed, 31.6\% [25.3--38.6\%] vs 6.8\% [4.0--11.4\%] likewise. Full per-cell CIs are in the supplementary evaluation log (\texttt{agents/evaluate.py} Wilson computation).
+
+\subsection{Limitations}
+Three limitations qualify these results. First, absolute classification accuracy on the out-of-distribution set is low (24.2\% for the ensemble), reflecting the substantial domain gap between PlantVillage's controlled training images and heterogeneous web-sourced photographs with cluttered backgrounds and variable lighting. The Vision Agent was reused unmodified, without any domain adaptation or fine-tuning on field data; closing this perception gap -- through domain-adaptive training or field-collected training data -- is the most direct route to improving end-to-end utility. The agentic layer mitigates the safety consequences of this gap but cannot substitute for a more robust perception module. Second, the test set is modest in size (five images per class); a larger, curated field dataset with verified labels would tighten the estimates and enable per-class error analysis. Third, the Orchestrator's confidence, margin, and agreement thresholds were set conservatively by design rather than tuned against a validation objective; the high human-intervention rate (63.2\%) is a direct consequence of this caution, and a learned or calibrated routing policy, noted in Section~\ref{sec:conclusion}, may achieve a more favorable safety-coverage trade-off than the fixed thresholds used here.
+
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+This paper presented an agentic AI framework that upgrades a standard CNN-based plant disease classifier into a safety-aware diagnostic advisory system exercising bounded autonomy within a human-in-the-loop envelope. By decomposing the diagnostic process into a Vision Agent, a Confidence and Image-Quality Agent, a Retrieval Agent, a Reasoning Agent, and an Orchestrator that conditions computation and action on predictive uncertainty, the system moves beyond single-shot classification toward the autonomy, goal-directed reasoning, and environment-aware deferral that characterize agentic AI. The introduced agentic metrics -- correct-action rate, harmful-action rate, and human-intervention rate -- offer a more complete picture of deployment safety than classification accuracy alone, and our results demonstrate a substantial reduction in harmful autonomous actions relative to a naive always-act baseline.
+
+Several extensions follow naturally from the architecture proposed here. An episodic \emph{Memory Agent} would allow the system to retain a history of diagnoses per field or farmer, enabling pattern detection across repeated visits. A \emph{Follow-up Agent} could request a subsequent image after a fixed interval to track disease progression or treatment efficacy over time, an evaluation that PlantVillage's single-image structure does not currently support and would require new longitudinal data collection. Finally, replacing the Orchestrator's fixed confidence and margin thresholds with a learned routing policy, and extending the Vision Agent to the federated multi-client setting explored in our related work, represent promising directions for future research toward deployable, trustworthy agricultural AI.
+
+\begin{thebibliography}{00}
+
+\bibitem{b1} D.~B. Acharya, K.~Kuppan, and B.~Divya, ``Agentic AI: Autonomous intelligence for complex goals -- a comprehensive survey,'' \emph{IEEE Access}, 2025.
+
+\bibitem{b2} A.~Bandi, B.~Kongari, R.~Naguru, S.~Pasnoor, and S.~V. Vilipala, ``The rise of agentic AI: A review of definitions, frameworks, architectures, applications, evaluation metrics, and challenges,'' \emph{Future Internet}, vol.~17, p.~404, 2025.
+
+\bibitem{b3} F.~Binucci, P.~Banelli, P.~Di Lorenzo, and S.~Barbarossa, ``Dynamic resource allocation for multi-user goal-oriented communications at the wireless edge,'' in \emph{Proc. 30th European Signal Processing Conf. (EUSIPCO)}, 2022, pp.~697--701.
+
+\bibitem{b4} U.~M. Borghoff, P.~Bottoni, and R.~Pareschi, ``Human-artificial interaction in the age of agentic AI: a system-theoretical approach,'' \emph{Frontiers in Human Dynamics}, vol.~7, p.~1579166, 2025.
+
+\bibitem{b5} C.~Chawla, S.~Chatterjee, S.~S. Gadadinni, P.~Verma, and S.~Banerjee, ``Agentic AI: The building blocks of sophisticated AI business applications,'' \emph{Journal of AI, Robotics \& Workplace Automation}, vol.~3, pp.~1--15, 2024.
+
+\bibitem{b6} S.~Hosseini and H.~Seilani, ``The role of agentic AI in shaping a smart future: A systematic review,'' \emph{Array}, p.~100399, 2025.
+
+\bibitem{b9} A.~Kaplan and M.~Haenlein, ``Siri, Siri, in my hand: Who's the fairest in the land? On the interpretations, illustrations, and implications of artificial intelligence,'' \emph{Business Horizons}, vol.~62, pp.~15--25, 2019.
+
+\bibitem{b10} Z.~Lin \emph{et al.}, ``Open source AI-based SE tools: Opportunities and challenges of collaborative software learning,'' \emph{ACM Trans. Softw. Eng. Methodol.}, vol.~34, pp.~1--24, 2025.
+
+\bibitem{r1} Y.~Matsuo, Y.~LeCun, M.~Sahani, D.~Precup, D.~Silver, M.~Sugiyama, E.~Uchibe, and J.~Morimoto, ``Deep learning, reinforcement learning, and world models,'' \emph{Neural Networks}, vol.~152, pp.~267--275, 2022.
+
+\bibitem{b13} S.~Murugesan, ``The rise of agentic AI: implications, concerns, and the path forward,'' \emph{IEEE Intelligent Systems}, vol.~40, pp.~8--14, 2025.
+
+\bibitem{b12} S.~Sivakumar, ``Agentic AI in predictive AIOps: Enhancing IT autonomy and performance,'' \emph{Int. J. Scientific Research and Management}, vol.~12, pp.~1631--1638, 2024.
+
+\bibitem{b14} Y.~Shavit \emph{et al.}, ``Practices for governing agentic AI systems,'' Research Paper, OpenAI, 2023.
+
+\bibitem{r2} A.~Holzinger, G.~Langs, H.~Denk, K.~Zatloukal, and H.~M\"uller, ``Causability and explainability of artificial intelligence in medicine,'' \emph{WIREs Data Mining and Knowledge Discovery}, vol.~9, p.~e1312, 2019.
+
+\bibitem{b11} N.~Karunanayake, ``Next-generation agentic AI for transforming healthcare,'' \emph{Informatics and Health}, vol.~2, pp.~73--83, 2025.
+
+\bibitem{r_hughes2015} D.~P. Hughes and M.~Salath\'e, ``An open access repository of images on plant health to enable the development of mobile disease diagnostics,'' \emph{arXiv preprint arXiv:1511.08060}, 2015.
+
+\bibitem{r_mohanty2016} S.~P. Mohanty, D.~P. Hughes, and M.~Salath\'e, ``Using deep learning for image-based plant disease detection,'' \emph{Frontiers in Plant Science}, vol.~7, p.~1419, 2016.
+
+\bibitem{r_he2016} K.~He, X.~Zhang, S.~Ren, and J.~Sun, ``Deep residual learning for image recognition,'' in \emph{Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR)}, 2016, pp.~770--778.
+
+\bibitem{r_lewis2020} P.~Lewis \emph{et al.}, ``Retrieval-augmented generation for knowledge-intensive NLP tasks,'' in \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2020.
+
+\bibitem{r_sounkhla2026} I.~Sounkhla, R.~Dhir, S.~Gupta, and S.~A.~Chouhan, ``ResNet-Transformer hybrid model for classifying apple leaf diseases,'' \emph{Procedia Computer Science}, vol.~283, pp.~5329--5335, 2026.
+
+\bibitem{r_fedavg} B.~McMahan \emph{et al.}, ``Communication-efficient learning of deep networks from decentralized data,'' in \emph{Proc. Int. Conf. Artificial Intelligence and Statistics (AISTATS)}, 2017.
+
+\bibitem{r_fedopt} S.~J.~Reddi \emph{et al.}, ``Adaptive federated optimization,'' in \emph{Proc. Int. Conf. Learning Representations (ICLR)}, 2021.
+
+\bibitem{r_fedma} H.~Wang \emph{et al.}, ``Federated learning with matched averaging,'' in \emph{Proc. Int. Conf. Learning Representations (ICLR)}, 2020.
+
+\bibitem{r_faiss} J.~Johnson, M.~Douze, and H.~J\'egou, ``Billion-scale similarity search with GPUs,'' \emph{IEEE Trans. Big Data}, vol.~7, no.~3, pp.~535--547, 2019.
+
+\end{thebibliography}
+
+\end{document}
