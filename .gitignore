@@ -26,3 +26,6 @@ agents/coverage_report.json
 # ── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 /data/test_images_web
+.claude/settings.local.json
+rag/
+tmp/
